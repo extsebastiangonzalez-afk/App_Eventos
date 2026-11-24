@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<?!= incluir_('Identidad') ?>
+<style>
+  /* App: usa los tokens del manual de identidad ISDIN (Identidad.html, sincronizado con tools/sync_identidad.ps1). */
+  :root {
+    --bg: var(--paper); --card: var(--paper);
+    --accent: var(--ink); --accent-ink: var(--paper);
+    --ok: var(--ok-text); --ok-bg: var(--ok-fill);
+    --warn: var(--peach-90); --warn-bg: var(--durazno-20);
+    --bad: var(--bad-text); --bad-bg: #FDECEA;
+    --off: var(--muted); --off-bg: var(--neutra-10);
+    --info: var(--ink); --info-bg: var(--bg-2);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.4; }
+  header { background: var(--chrome); padding: 12px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  header .logo svg { height: 28px; width: auto; display: block; margin: 0; }
+  header h1 { font-size: 16px; margin: 0; flex: 1; font-weight: 500; color: var(--ink-strong); padding-left: 16px; border-left: 1px solid var(--neutra-30); }
+  header .meta { color: var(--muted); font-size: 12px; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 16px 20px; margin-bottom: var(--gutter); }
+  .card h2 { font-size: 16px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; color: var(--ink-strong); }
+  .card h2 .btnColl { margin-left: auto; padding: 4px 12px; font-size: 12px; font-weight: 500; }
+  .card.collapsed > *:not(h2) { display: none !important; }
+  .card.collapsed h2 { margin-bottom: 0; }
+  .step { background: var(--peach); color: var(--ink-strong); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .drop { border: 2px dashed var(--neutra-30); border-radius: var(--radius-card); padding: 26px; text-align: center; color: var(--muted); cursor: pointer; }
+  .drop.over { border-color: var(--peach-70); background: var(--surface); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 3px; }
+  input, select, textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--paper); color: var(--ink); }
+  textarea { width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  /* Botones: secundarios como pastilla; principal en tinta con texto blanco (manual §5) */
+  button { font: inherit; font-size: 13px; padding: 7px 16px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--peach-70); background: var(--surface); }
+  button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); border-radius: var(--radius-sm); }
+  button.primary:hover:not(:disabled) { background: var(--ink-strong); border-color: var(--ink-strong); }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .card h2:focus-visible { outline: 2px solid var(--peach-70); outline-offset: 2px; }
+  input:focus, select:focus, textarea:focus { border-color: var(--peach-70); }
+  a { color: var(--peach-90); }
+  button:disabled { opacity: .5; cursor: default; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; font-family: var(--font-dense); font-size: 12px; }
+  th { color: var(--ink-strong); font-weight: 700; position: sticky; top: 0; background: var(--chrome); }
+  td input.qty { width: 70px; }
+  td input.prod { width: 100%; min-width: 280px; }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .ok { background: var(--ok-bg); color: var(--ok); } .revisar { background: var(--warn-bg); color: var(--warn); }
+  .sin_cruce { background: var(--bad-bg); color: var(--bad); } .omitido { background: var(--off-bg); color: var(--off); }
+  tr.is-omit td { opacity: .55; }
+  .sugg button { padding: 2px 8px; font-size: 11px; margin: 2px 4px 0 0; }
+  .st-CARGADO { background: var(--ok-bg); color: var(--ok); } .st-PENDIENTE { background: var(--info-bg); color: var(--info); }
+  .st-REVISAR, .st-MODIFICADO, .st-YA { background: var(--warn-bg); color: var(--warn); }
+  .st-ERROR { background: var(--bad-bg); color: var(--bad); } .st-IGNORADO, .st-NO { background: var(--off-bg); color: var(--off); }
+  #inboxTable td button { padding: 2px 8px; font-size: 11px; margin: 0 4px 2px 0; }
+  #inboxTable td { font-size: 13px; }
+  #repTable td { font-size: 12px; } #repTable tr.cargado td { background: var(--ok-fill); } #repTable tr.cargado td:first-child { box-shadow: inset 4px 0 0 var(--ok-text); }
+  .repFilters { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+  .repCliList { columns: 260px; column-gap: 16px; margin: 8px 0; max-height: 220px; overflow: auto; }
+  .repCliList label { display: block; margin: 0; padding: 2px 0; font-size: 12px; break-inside: avoid; cursor: pointer; }
+  .repCliList label.off { color: var(--off); text-decoration: line-through; }
+  button.mini { padding: 2px 8px; font-size: 11px; margin-left: 4px; }
+  .btnSplit { padding: 1px 7px; font-size: 11px; margin-top: 4px; }
+  .splitHint { color: var(--warn); font-size: 11px; font-weight: 600; }
+  .splitBox { margin-top: 6px; padding: 8px; border: 1px solid var(--warn); background: var(--warn-bg); border-radius: 6px; }
+  .splitBox textarea { width: 100%; min-width: 260px; font-size: 12px; }
+  .splitBox button { padding: 3px 9px; font-size: 11px; margin: 4px 4px 0 0; }
+  .summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .group { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .mapPrev { margin-top: 10px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+  .mapPrev th, .mapPrev td { white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; padding: 4px 8px; }
+  .mapPrev .used { background: var(--ok-fill); }
+  tr.totalRow td { background: var(--chrome); font-weight: 700; color: var(--ink-strong); border-top: 2px solid var(--ink); }
+  tr.totalRow td .small { font-weight: 400; }
+  .evBlock { margin-top: 16px; }
+  .evBlock:first-child { margin-top: 0; }
+  .evHead { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; padding: 8px 10px; background: var(--bg-2); border-left: 4px solid var(--peach-70); border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+  .evHead strong { font-size: 14px; }
+  .opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 4px; border-radius: 6px; }
+  .opt:hover { background: var(--surface); }
+  .opt input[type=radio] { margin-top: 3px; }
+  .sub { margin: 6px 0 6px 26px; }
+  .msg { padding: 12px 16px; border-radius: var(--radius-sm); margin: 8px 0; font-size: 13px; border-left: 4px solid transparent; }
+  .msg.err { background: var(--bad-bg); color: var(--bad); border-left-color: var(--bad-text); } .msg.info { background: var(--bg-2); color: var(--ink); border-left-color: var(--peach-70); } .msg.good { background: var(--ok-bg); color: var(--ok); border-left-color: var(--ok-text); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--peach-70); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #busy { position: fixed; inset: 0; background: rgba(255,255,255,.6); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  #busy div { background: var(--paper); border: 1px solid var(--line); padding: 14px 18px; border-radius: var(--radius-card); }
+  @media (max-width: 640px) { main { padding: 16px; } header { padding: 12px 16px; } td input.prod { min-width: 200px; } }
+</style>
+</head>
+<body>
+<header>
+  <?!= incluir_('Logo') ?>
+  <h1>Lector de Ventas de Eventos</h1>
+  <span class="meta" id="hdrMeta"><?= userEmail ?></span>
+  <button id="btnRefresh" class="hidden small">Actualizar Master</button>
+</header>
+<div id="busy" class="hidden"><div><span class="spinner"></span> <span id="busyText">Procesando…</span></div></div>
+
+<main>
+  <div id="globalMsg"></div>
+
+  <!-- 0. Carpeta de ventas (bandeja) -->
+  <section class="card" id="cardInbox">
+    <h2>📂 Carpeta de ventas</h2>
+    <div id="inboxCfg"></div>
+    <div id="inboxBar" class="row hidden" style="align-items:center;margin-top:8px">
+      <button id="btnInboxScan">↻ Revisar carpeta</button>
+      <button id="btnInboxAuto" title="Lee los archivos pendientes uno por uno y carga solos los que estén 100 % OK (ID válido, evento sin cargar y todos los productos cruzados por código)">⚡ Cargar automáticamente los que estén 100 % OK</button>
+      <div><select id="inboxFilter"><option value="todo">Por atender</option><option value="all">Todos</option><option value="CARGADO">Cargados</option></select></div>
+      <label id="autoBox" class="hidden small" style="margin:0"><input type="checkbox" id="chkAuto"> Revisar y cargar solo cada hora</label>
+    </div>
+    <div id="inboxSummary" class="small" style="margin-top:8px"></div>
+    <div id="inboxMsg"></div>
+    <div class="tablewrap"><table id="inboxTable"></table></div>
+  </section>
+
+  <!-- Reporte: eventos del mes -->
+  <section class="card" id="cardMonth">
+    <h2>📅 Eventos del mes</h2>
+    <p class="small muted" style="margin:0 0 8px">Tabla para enviar al equipo con los eventos del mes y cuáles ya tienen ventas en la PLANTILLA (en verde).</p>
+    <div class="row" style="align-items:flex-end">
+      <div><label>Mes</label><input type="month" id="repMonth"></div>
+      <div><label class="small" style="margin:0"><input type="checkbox" id="repCancel"> Incluir rechazados / cancelados</label></div>
+      <div><button id="btnRep">Generar tabla</button></div>
+      <div><button id="btnRepPng" class="hidden">⬇ Descargar imagen</button></div>
+      <div><button id="btnRepCopy" class="hidden">📋 Copiar imagen</button></div>
+      <div><button id="btnRepXlsx" class="hidden" title="Excel con los eventos ya cargados en verde y una columna ESTADO">⬇ Excel (con colores)</button></div>
+      <div><button id="btnRepCsv" class="hidden" title="CSV: no guarda colores; el estado va en la columna ESTADO">⬇ CSV</button></div>
+    </div>
+    <div id="repFilters" class="hidden repFilters">
+      <div class="row" style="align-items:center">
+        <div><label class="small" style="margin:0">Mostrar
+          <select id="repShow">
+            <option value="all">Todos (cargados en verde)</option>
+            <option value="falta">Solo los que faltan</option>
+            <option value="cargado">Solo los ya cargados</option>
+          </select></label></div>
+        <div class="small"><strong>Clientes:</strong> <span id="repCliSum"></span>
+          <button id="repCliAll" class="mini">Mostrar todos</button>
+          <button id="repCliNone" class="mini">Quitar todos</button>
+          <input id="repCliSearch" placeholder="Buscar cliente…" style="width:160px;padding:3px 6px;font-size:12px">
+        </div>
+      </div>
+      <div id="repCliList" class="repCliList"></div>
+      <div class="small muted">Quita la marca de un cliente para sacarlo de la tabla, la imagen y el Excel. Los clientes quitados se recuerdan en este navegador para los próximos meses.</div>
+    </div>
+    <div id="repSummary" class="small" style="margin-top:8px"></div>
+    <div id="repMsg"></div>
+    <div class="tablewrap"><table id="repTable"></table></div>
+    <div id="repImgBox" class="hidden" style="margin-top:10px">
+      <p class="small muted">Si la descarga no empezó: clic derecho sobre la imagen → <em>Guardar imagen como…</em> o <em>Copiar imagen</em>.</p>
+      <img id="repImg" alt="Tabla de eventos del mes" style="max-width:100%;border:1px solid var(--line);border-radius:6px">
+    </div>
+  </section>
+
+  <!-- 1. Archivo -->
+  <section class="card" id="cardFile">
+    <h2><span class="step">1</span> Archivo de ventas</h2>
+    <div class="drop" id="drop">
+      <strong>Arrastra aquí una foto, PDF, Excel o CSV — o una carpeta</strong><br>
+      <span class="small">o haz clic para elegirlo · JPG, PNG, PDF, XLSX, XLS, CSV</span><br>
+      <span class="small">Si el archivo o la carpeta se llama como el <strong>ID RESUMEN</strong> (ej. <code>ACT-0123</code>), se toman de "Detalle eventos" el cliente, el PDV y las fechas.</span>
+      <input type="file" id="fileInput" class="hidden" accept="image/*,.pdf,.xlsx,.xls,.xlsm,.csv">
+      <input type="file" id="folderInput" class="hidden" webkitdirectory directory multiple>
+    </div>
+    <div style="margin-top:6px"><button id="btnFolder" class="small">📁 Elegir una carpeta</button></div>
+    <div class="row" style="margin-top:10px">
+      <div id="engineBox">
+        <label>Lector de fotos</label>
+        <select id="engine" title="Por columnas: lee la foto en este navegador y rearma las filas y columnas de la tabla (recomendado para capturas de Excel). OCR de Google: solo texto.">
+          <option value="cols">Por columnas (tabla)</option><option value="ocr">OCR de Google (texto)</option></select>
+      </div>
+      <div class="muted small" id="fileInfo"></div>
+    </div>
+    <details style="margin-top:10px">
+      <summary class="small muted">¿Te llegó como texto (WhatsApp/correo)? Pégalo aquí</summary>
+      <textarea id="pasteText" placeholder="CÓDIGO  DESCRIPCIÓN  CANTIDAD (una línea por producto)"></textarea>
+      <button id="btnPaste">Interpretar texto</button>
+    </details>
+    <div id="tableMap" class="hidden" style="margin-top:12px"></div>
+    <details id="rawBox" class="hidden" style="margin-top:12px">
+      <summary class="small muted">Texto leído del archivo (puedes corregirlo y volver a interpretar)</summary>
+      <textarea id="rawText"></textarea>
+      <button id="btnReparse">Volver a interpretar texto</button>
+    </details>
+  </section>
+
+  <!-- 2. Cliente y fechas -->
+  <section class="card hidden" id="cardClient">
+    <h2><span class="step">2</span> Cliente y fechas de venta</h2>
+    <div class="row">
+      <div style="min-width:280px;flex:1">
+        <label>Cliente (Origin del EAN Master)</label>
+        <select id="origin" style="width:100%"></select>
+        <div class="small muted" id="clientInfo"></div>
+      </div>
+      <div><label>ID RESUMEN (del nombre)</label><input id="srcId" placeholder="ACT-0000" style="width:110px"></div>
+      <div><label>Desde</label><input type="date" id="dFrom"></div>
+      <div><label>Hasta</label><input type="date" id="dTo"></div>
+      <div><button id="btnRematch">Recalcular</button></div>
+    </div>
+    <div id="idInfo" class="small" style="margin-top:8px"></div>
+  </section>
+
+  <!-- 3. Productos -->
+  <section class="card hidden" id="cardProducts">
+    <h2><span class="step">3</span> Productos</h2>
+    <div class="summary" id="prodSummary"></div>
+    <p class="small muted">Las filas en ámbar o rojo necesitan revisión. Lo que confirmes o corrijas se <strong>aprende</strong> y la próxima vez se cruza solo.</p>
+    <div id="prodTables"></div>
+    <datalist id="catalog"></datalist>
+  </section>
+
+  <!-- 4. Evento -->
+  <section class="card hidden" id="cardEvent">
+    <h2><span class="step">4</span> Evento (ID RESUMEN)</h2>
+    <div id="groups"></div>
+  </section>
+
+  <!-- 5. Vista previa y carga -->
+  <section class="card hidden" id="cardPreview">
+    <h2><span class="step">5</span> Vista previa — PLANTILLA VENTAS EVENTOS (A:L)</h2>
+    <div class="tablewrap"><table id="prevTable"></table></div>
+    <div id="commitMsg"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="btnCommit">Cargar a la PLANTILLA</button>
+      <button id="btnReset">Nueva carga</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var MESES = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  var S = { boot: null, file: null, ext: null, tableRows: null, match: null, products: [], groups: [], catalogByEan: {} };
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function busy(on, text) { $('busy').classList.toggle('hidden', !on); if (text) $('busyText').textContent = text; }
+  function msg(el, kind, text) { el.innerHTML = text ? '<div class="msg ' + kind + '">' + esc(text) + '</div>' : ''; }
+  function call(fn, arg, text) {
+    busy(true, text);
+    return new Promise(function (resolve, reject) {
+      var r = google.script.run.withSuccessHandler(function (x) { busy(false); resolve(x); })
+        .withFailureHandler(function (e) { busy(false); msg($('globalMsg'), 'err', e.message || String(e)); reject(e); });
+      if (arg === undefined) r[fn](); else if (Array.isArray(arg)) r[fn].apply(r, arg); else r[fn](arg);
+    });
+  }
+  function fmtD(iso) { if (!iso) return ''; var p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function mesDe(iso) { return iso ? MESES[+iso.split('-')[1] - 1] : ''; }
+  function dias(a, b) { if (!a) return ''; var d = (new Date(b || a) - new Date(a)) / 86400000; return Math.round(d) + 1; }
+
+  // ---------------------------------------------------------------- Inicio
+  call('api_bootstrap', undefined, 'Cargando Master…').then(function (b) {
+    S.boot = b;
+    $('hdrMeta').textContent = b.user.email + ' · Master al ' + new Date(b.mastersRefreshedAt).toLocaleString('es-CO');
+    if (/admin/i.test(b.user.role)) $('btnRefresh').classList.remove('hidden');
+    if (b.claude) $('engine').insertAdjacentHTML('beforeend', '<option value="claude">Claude (IA)</option>');
+    try { var eng = localStorage.getItem('lv_lector_fotos'); if (eng && $('engine').querySelector('option[value="' + eng + '"]')) $('engine').value = eng; } catch (e) { }
+    $('catalog').innerHTML = b.catalog.map(function (p) { S.catalogByEan[p.ean] = p; return '<option value="' + esc(p.ean + ' · ' + p.producto) + '"></option>'; }).join('');
+    $('origin').innerHTML = '<option value="">— Elegir cliente —</option>' + b.origins.map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('');
+    renderInboxCfg(b.inbox);
+    if (b.inbox.folder && !b.inbox.folder.error) loadInbox();
+  });
+
+  // ---------------------------------------------------------------- 0. Carpeta de ventas
+  var ST_ORDER = ['PENDIENTE', 'REVISAR', 'EVENTO YA CARGADO', 'MODIFICADO', 'ERROR', 'CARGADO', 'IGNORADO', 'NO SOPORTADO'];
+  var TODO = { 'PENDIENTE': 1, 'REVISAR': 1, 'EVENTO YA CARGADO': 1, 'MODIFICADO': 1, 'ERROR': 1 };
+  function stClass(s) { return 'chip st-' + String(s).split(' ')[0]; }
+
+  function renderInboxCfg(inb) {
+    S.inbox = S.inbox || {};
+    var f = inb.folder, admin = S.boot.isAdmin;
+    var cfgForm = '<div class="row" style="margin-top:6px"><div style="flex:1;min-width:260px"><input id="folderUrl" style="width:100%" placeholder="Pega el enlace de la carpeta de Google Drive"></div><div><button id="btnFolder2">Guardar carpeta</button></div></div>';
+    if (!f) {
+      $('inboxCfg').innerHTML = admin ? '<p class="small muted">Configura la carpeta de Drive donde se guardan las ventas de los eventos (fotos, PDF, Excel). ' +
+        'Pon el <strong>ID RESUMEN</strong> en el nombre de cada archivo o subcarpeta (ej. <code>ACT-0123</code>). La carpeta debe estar compartida con la cuenta que publicó el lector.</p>' + cfgForm
+        : '<p class="small muted">Aún no hay carpeta de ventas configurada. Pide a un administrador que la configure. Mientras tanto, sube los archivos abajo.</p>';
+    } else {
+      $('inboxCfg').innerHTML = '<div class="small">Carpeta: <a href="' + esc(f.url) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a>' +
+        (f.error ? ' <span style="color:var(--bad)">— sin acceso. Compártela con la cuenta que publicó el lector.</span>' : '') +
+        (admin ? ' · <a href="#" id="lnkChangeFolder">cambiar</a>' : '') + '</div><div id="folderForm" class="hidden">' + cfgForm + '</div>';
+      if (admin) $('lnkChangeFolder').onclick = function (e) { e.preventDefault(); $('folderForm').classList.toggle('hidden'); };
+      $('inboxBar').classList.toggle('hidden', !!f.error);
+    }
+    if (admin) { $('autoBox').classList.remove('hidden'); $('chkAuto').checked = !!inb.autoOn; }
+    if ($('btnFolder2')) $('btnFolder2').onclick = function () {
+      call('api_setFolder', $('folderUrl').value, 'Verificando la carpeta…').then(function (folder) {
+        renderInboxCfg({ folder: folder, autoOn: $('chkAuto').checked });
+        loadInbox();
+      });
+    };
+  }
+
+  function loadInbox() {
+    return call('api_inbox', undefined, 'Revisando la carpeta de ventas…').then(function (r) { S.inbox = r; renderInbox(); });
+  }
+  $('btnInboxScan').onclick = loadInbox;
+  $('inboxFilter').onchange = renderInbox;
+  $('chkAuto').onchange = function () {
+    var on = this.checked;
+    call('api_setAutoTrigger', on, on ? 'Activando la revisión automática…' : 'Desactivando…').then(function (v) {
+      $('chkAuto').checked = v;
+      msg($('inboxMsg'), 'info', v ? 'Cada hora el lector revisará la carpeta y cargará solo los archivos 100 % OK. Los demás quedarán aquí "por atender".' : 'Revisión automática desactivada.');
+    }, function () { $('chkAuto').checked = !on; });
+  };
+  $('btnInboxAuto').onclick = function () {
+    if (!confirm('Se leerán los archivos PENDIENTES uno por uno. Solo se cargarán a la PLANTILLA los que tengan ID RESUMEN válido, evento sin cargas previas y todos los productos cruzados por código. ¿Continuar?')) return;
+    call('api_inboxAuto', undefined, 'Leyendo y cargando archivos pendientes… (puede tardar unos minutos)').then(function (r) {
+      if (r.busy) return msg($('inboxMsg'), 'info', 'Ya hay una carga automática en curso. Espera unos minutos y pulsa "Revisar carpeta".');
+      var t = 'Cargados: ' + r.cargados.length + (r.cargados.length ? ' (' + r.cargados.map(function (x) { return x.id + ' ' + x.filas + ' filas'; }).join(', ') + ')' : '') +
+        ' · Para revisar: ' + r.revisar.length + ' · Errores: ' + r.errores.length + (r.quedan ? ' · Quedan ' + r.quedan + ' pendientes: vuelve a pulsar el botón.' : '');
+      loadInbox().then(function () { msg($('inboxMsg'), r.errores.length ? 'err' : 'good', t); });
+    });
+  };
+
+  function renderInbox() {
+    var r = S.inbox || {}, files = r.files || [];
+    var c = r.counts || {};
+    $('inboxSummary').innerHTML = ST_ORDER.filter(function (s) { return c[s]; }).map(function (s) { return '<span class="' + stClass(s) + '">' + esc(s) + ': ' + c[s] + '</span>'; }).join(' ') +
+      (files.length ? '' : '<span class="muted">La carpeta está vacía.</span>');
+    var filt = $('inboxFilter').value;
+    var list = files.filter(function (f) { return filt === 'all' ? true : filt === 'todo' ? TODO[f.estado] : f.estado === filt; })
+      .sort(function (a, b) { return ST_ORDER.indexOf(a.estado) - ST_ORDER.indexOf(b.estado) || (a.path < b.path ? -1 : 1); });
+    if (!list.length) { $('inboxTable').innerHTML = files.length ? '<tr><td class="muted">Nada por atender: todos los archivos están cargados o ignorados. ✔</td></tr>' : ''; return; }
+    $('inboxTable').innerHTML = '<thead><tr><th>Archivo</th><th>ID RESUMEN</th><th>Evento</th><th>Estado</th><th></th></tr></thead><tbody>' +
+      list.map(function (f) {
+        var acts = '';
+        if (f.estado !== 'CARGADO' && f.estado !== 'NO SOPORTADO' && f.estado !== 'IGNORADO') acts += '<button data-a="open" data-id="' + esc(f.id) + '">Revisar y cargar</button>';
+        if (f.estado === 'REVISAR' || f.estado === 'ERROR') acts += '<button data-a="retry" data-id="' + esc(f.id) + '" title="Volver a dejarlo pendiente para la carga automática">Reintentar</button>';
+        if (TODO[f.estado]) acts += '<button data-a="ignore" data-id="' + esc(f.id) + '">Ignorar</button>';
+        if (f.estado === 'IGNORADO') acts += '<button data-a="retry" data-id="' + esc(f.id) + '">Reactivar</button>';
+        return '<tr><td><a href="' + esc(f.url) + '" target="_blank" rel="noopener">' + esc(f.path) + '</a></td>' +
+          '<td>' + (f.idResumen ? '<strong>' + esc(f.idResumen) + '</strong>' : '<span class="muted">—</span>') + '</td>' +
+          '<td class="small">' + esc(f.cliente) + (f.pdv ? '<br>' + esc(f.pdv) : '') + (/RECHAZ|CANCEL/i.test(f.estadoEvento) ? '<br><span style="color:var(--bad)">' + esc(f.estadoEvento) + '</span>' : '') + '</td>' +
+          '<td><span class="' + stClass(f.estado) + '">' + esc(f.estado) + '</span>' + (f.detalle ? '<div class="small muted">' + esc(f.detalle) + '</div>' : '') + '</td>' +
+          '<td style="white-space:nowrap">' + acts + '</td></tr>';
+      }).join('') + '</tbody>';
+    Array.prototype.forEach.call(document.querySelectorAll('#inboxTable button'), function (b) {
+      var id = b.getAttribute('data-id'), a = b.getAttribute('data-a');
+      b.onclick = function () {
+        if (a === 'open') return openDriveFile(id);
+        call('api_inboxSetState', [id, a === 'ignore' ? 'IGNORADO' : 'PENDIENTE'], 'Guardando…').then(loadInbox);
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------- Reporte: eventos del mes
+  var REP_COLS = [
+    { k: 'mes', h: 'MES', max: 100 }, { k: 'dias', h: 'DIAS', max: 50 }, { k: 'idResumen', h: 'ID RESUMEN', max: 100 },
+    { k: 'solicitante', h: 'SOLICITANTE', max: 220 }, { k: 'cliente', h: 'CLIENTE', max: 210 }, { k: 'pdv', h: 'ISDIN PDV', max: 250 },
+    { k: 'tipo', h: 'TIPO DE EVENTO', max: 130 }, { k: 'dermo', h: 'DERMO', max: 180 }
+  ];
+  (function () { var d = new Date(); $('repMonth').value = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); })();
+
+  $('btnRep').onclick = function () {
+    if (!$('repMonth').value) return msg($('repMsg'), 'err', 'Elige un mes.');
+    call('api_monthReport', [$('repMonth').value, $('repCancel').checked], 'Buscando eventos del mes…').then(function (r) {
+      S.rep = r; $('repImgBox').classList.add('hidden'); msg($('repMsg'), '', ''); $('repCliSearch').value = '';
+      renderRepClients(); renderRep();
+    });
+  };
+
+  // ---- filtros: qué mostrar y clientes ocultos (se recuerdan en este navegador)
+  var REP_EXCL_KEY = 'lv_rep_clientes_ocultos';
+  S.repExcl = (function () { try { return JSON.parse(localStorage.getItem(REP_EXCL_KEY) || '{}') || {}; } catch (e) { return {}; } })();
+  function saveRepExcl() { try { localStorage.setItem(REP_EXCL_KEY, JSON.stringify(S.repExcl)); } catch (e) { /* sin almacenamiento: solo dura la sesión */ } }
+  function cliKey(x) { return String(x.cliente || '').trim() || '(sin cliente)'; }
+
+  /** Filas del mes con los filtros aplicados; es lo que muestran la tabla, la imagen, el Excel y el CSV. */
+  function repView() {
+    var r = S.rep, show = $('repShow').value;
+    var rows = r.rows.filter(function (x) {
+      if (S.repExcl[cliKey(x)]) return false;
+      return show === 'falta' ? !x.cargado : show === 'cargado' ? !!x.cargado : true;
+    });
+    var carg = rows.filter(function (x) { return x.cargado; }).length;
+    var ocultos = Object.keys(repClients()).filter(function (c) { return S.repExcl[c]; }).length;
+    return { mes: r.mes, anio: r.anio, rows: rows, total: rows.length, cargados: carg, faltan: rows.length - carg, show: show,
+             ocultos: ocultos, totalMes: r.total };
+  }
+  function repClients() {
+    var m = {};
+    (S.rep ? S.rep.rows : []).forEach(function (x) {
+      var k = cliKey(x); m[k] = m[k] || { n: 0, faltan: 0 }; m[k].n++; if (!x.cargado) m[k].faltan++;
+    });
+    return m;
+  }
+  function renderRepClients() {
+    var m = repClients(), q = normTxt($('repCliSearch').value);
+    var names = Object.keys(m).sort(function (a, b) { return a.localeCompare(b, 'es'); });
+    $('repCliList').innerHTML = names.filter(function (c) { return !q || normTxt(c).indexOf(q) >= 0; }).map(function (c) {
+      var off = !!S.repExcl[c];
+      return '<label class="' + (off ? 'off' : '') + '"><input type="checkbox" data-cli="' + esc(c) + '"' + (off ? '' : ' checked') + '> ' + esc(c) +
+        ' <span class="muted">(' + m[c].n + ' · ' + (m[c].faltan ? m[c].faltan + ' faltan' : 'todo cargado') + ')</span></label>';
+    }).join('') || '<span class="muted">Ningún cliente coincide.</span>';
+    $('repCliList').querySelectorAll('input[data-cli]').forEach(function (cb) {
+      cb.onchange = function () {
+        var c = cb.getAttribute('data-cli');
+        if (cb.checked) delete S.repExcl[c]; else S.repExcl[c] = 1;
+        cb.parentNode.classList.toggle('off', !cb.checked);
+        saveRepExcl(); renderRep();
+      };
+    });
+  }
+  function normTxt(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
+  function setAllClients(on) {
+    var q = normTxt($('repCliSearch').value);   // con búsqueda escrita, solo afecta a los clientes visibles
+    Object.keys(repClients()).forEach(function (c) {
+      if (q && normTxt(c).indexOf(q) < 0) return;
+      if (on) delete S.repExcl[c]; else S.repExcl[c] = 1;
+    });
+    saveRepExcl(); renderRepClients(); renderRep();
+  }
+  $('repCliAll').onclick = function () { setAllClients(true); };
+  $('repCliNone').onclick = function () { setAllClients(false); };
+  $('repCliSearch').oninput = renderRepClients;
+  $('repShow').onchange = renderRep;
+
+  function renderRep() {
+    var r = S.rep; if (!r) return;
+    var v = repView(), nCli = Object.keys(repClients()).length;
+    $('repFilters').classList.toggle('hidden', !r.total);
+    $('repImgBox').classList.add('hidden');
+    $('repCliSum').textContent = (nCli - v.ocultos) + ' de ' + nCli + ' visibles';
+    var notas = [];
+    if (v.show === 'falta') notas.push('solo los que faltan');
+    if (v.show === 'cargado') notas.push('solo los ya cargados');
+    if (v.ocultos) notas.push(v.ocultos + (v.ocultos === 1 ? ' cliente quitado' : ' clientes quitados'));
+    $('repSummary').innerHTML = '<strong>' + esc(r.mes) + ' ' + r.anio + '</strong>: ' + v.total + ' eventos · ' +
+      '<span class="chip ok">' + v.cargados + ' ya cargados</span> <span class="chip revisar">' + v.faltan + ' faltan por cargar</span>' +
+      (notas.length ? ' <span class="muted">(' + esc(notas.join(' · ')) + '; el mes completo tiene ' + r.total + ')</span>' : '');
+    ['btnRepPng', 'btnRepCopy', 'btnRepXlsx', 'btnRepCsv'].forEach(function (id) { $(id).classList.toggle('hidden', !v.total); });
+    $('repTable').innerHTML = !r.total ? '<tr><td class="muted">No hay eventos en ese mes.</td></tr>' :
+      !v.total ? '<tr><td class="muted">Ningún evento con estos filtros.</td></tr>' :
+      '<thead><tr>' + REP_COLS.map(function (c) { return '<th>' + c.h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      v.rows.map(function (x) {
+        return '<tr class="' + (x.cargado ? 'cargado' : '') + '" title="' + (x.cargado ? esc('Ya cargado: ' + x.filas + ' filas, ' + x.unidades + ' unidades') : 'Falta cargar') + '">' +
+          REP_COLS.map(function (c) { return '<td>' + esc(x[c.k]) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+  }
+
+  function repFileName(ext) {
+    var v = repView();
+    return 'Eventos_' + S.rep.mes + '_' + S.rep.anio + (v.show === 'falta' ? '_faltantes' : v.show === 'cargado' ? '_cargados' : '') + '.' + (ext || 'png');
+  }
+
+  /** Descarga un archivo; si el navegador lo bloquea deja un enlace para hacer clic. */
+  function saveFile(name, blob) {
+    var url = URL.createObjectURL(blob);
+    try { var a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { /* enlace abajo */ }
+    $('repMsg').innerHTML = '<div class="msg good">Descargado <strong>' + esc(name) + '</strong>. Si no aparece, <a href="' + url + '" download="' + esc(name) + '">haz clic aquí</a>.</div>';
+  }
+
+  var REP_XCOLS = REP_COLS.concat([{ k: 'estadoCarga', h: 'ESTADO' }]);
+  function repCell(x, c) { return c.k === 'estadoCarga' ? (x.cargado ? 'Cargado' : 'Falta cargar') : x[c.k]; }
+
+  $('btnRepCsv').onclick = function () {
+    var q = function (s) { s = String(s == null ? '' : s); return /[";\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    var lines = [REP_XCOLS.map(function (c) { return c.h; }).join(';')].concat(repView().rows.map(function (x) {
+      return REP_XCOLS.map(function (c) { return q(repCell(x, c)); }).join(';');
+    }));
+    saveFile(repFileName('csv'), new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+  };
+
+  $('btnRepXlsx').onclick = function () {
+    var v = repView(), hoy = new Date();
+    var C = function (val, s) { return { v: val, s: s }; };
+    var rows = [
+      [C('Ventas de eventos · ' + v.mes + ' ' + v.anio, 1)],
+      [C(v.total + ' eventos · ' + v.cargados + ' ya cargados · ' + v.faltan + ' faltan por cargar' +
+         (v.show === 'falta' ? ' · solo los que faltan' : v.show === 'cargado' ? ' · solo los ya cargados' : '') +
+         ' · generado ' + ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear(), 2)],
+      [C('', 0), C('Verde = ya cargado en la PLANTILLA', 0)],
+      REP_XCOLS.map(function (c) { return C(c.h, 3); })
+    ];
+    rows[2][0].s = 8;
+    v.rows.forEach(function (x) {
+      rows.push(REP_XCOLS.map(function (c) {
+        var val = repCell(x, c);
+        if (c.k === 'dias' && val !== '' && val != null && !isNaN(+val)) val = +val;
+        return C(val, c.k === 'estadoCarga' ? (x.cargado ? 6 : 7) : (x.cargado ? 4 : 5));
+      }));
+    });
+    var bytes = buildXlsx({
+      sheet: 'Eventos ' + v.mes.slice(0, 3) + ' ' + v.anio,
+      widths: [11, 7, 13, 30, 28, 36, 16, 30, 14],
+      rows: rows, freezeRows: 4,
+      filter: 'A4:' + xlsxCol(REP_XCOLS.length - 1) + (rows.length)
+    });
+    saveFile(repFileName('xlsx'), new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  };
+
+  // XLSX-BEGIN — escritor mínimo de .xlsx (zip sin compresión), sin librerías
+  function xlsxCol(i) { var s = ''; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+  function xlsxEsc(s) {
+    return String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  /** spec: { sheet, widths:[n], rows:[[{v, s}]], freezeRows, filter:'A4:I20' } → Uint8Array.
+   *  Estilos (s): 0 normal · 1 título · 2 gris · 3 encabezado · 4 fila cargada (verde) · 5 fila pendiente ·
+   *  6 ESTADO cargado · 7 ESTADO falta · 8 cuadro verde de la leyenda */
+  function buildXlsx(spec) {
+    var NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    var HEAD = '<' + '?xml version="1.0" encoding="UTF-8" standalone="yes"?' + '>\n';   // partido: "<" + "?" sería un scriptlet de HtmlService
+    var sheetName = xlsxEsc(String(spec.sheet || 'Hoja1').replace(/[\[\]\*\?\/\\:]/g, ' ').slice(0, 31));
+    var border = '<border><left style="thin"><color rgb="FFE1E1E1"/></left><right style="thin"><color rgb="FFE1E1E1"/></right>' +
+      '<top style="thin"><color rgb="FFE1E1E1"/></top><bottom style="thin"><color rgb="FFE1E1E1"/></bottom><diagonal/></border>';
+    var xf = function (font, fill, brd, align) {
+      return '<xf numFmtId="0" fontId="' + font + '" fillId="' + fill + '" borderId="' + brd + '" xfId="0" applyFont="1" applyFill="1" applyBorder="1"' +
+        (align ? ' applyAlignment="1"><alignment ' + align + '/></xf>' : '/>');
+    };
+    var styles = HEAD + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<fonts count="6"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="14"/><name val="Arial"/></font>' +
+      '<font><sz val="10"/><color rgb="FF6D6D6D"/><name val="Arial"/></font><font><b/><sz val="11"/><color rgb="FF2E2E2B"/><name val="Arial"/></font>' +
+      '<font><b/><sz val="11"/><color rgb="FF086124"/><name val="Arial"/></font><font><b/><sz val="11"/><color rgb="FFB71C1C"/><name val="Arial"/></font></fonts>' +
+      '<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFF5F3EE"/><bgColor indexed="64"/></patternFill></fill>' +
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFC8E6C9"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+      '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' + border + '</borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="9">' + xf(0, 0, 0) + xf(1, 0, 0) + xf(2, 0, 0) + xf(3, 2, 1, 'vertical="center" wrapText="1"') +
+      xf(0, 3, 1, 'vertical="top" wrapText="1"') + xf(0, 0, 1, 'vertical="top" wrapText="1"') +
+      xf(4, 3, 1, 'vertical="top"') + xf(5, 0, 1, 'vertical="top"') + xf(0, 3, 1) + '</cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+    var sd = spec.rows.map(function (row, ri) {
+      return '<row r="' + (ri + 1) + '">' + row.map(function (c, ci) {
+        var ref = xlsxCol(ci) + (ri + 1), s = c.s ? ' s="' + c.s + '"' : '';
+        if (typeof c.v === 'number' && isFinite(c.v)) return '<c r="' + ref + '"' + s + '><v>' + c.v + '</v></c>';
+        if (c.v == null || c.v === '') return '<c r="' + ref + '"' + s + '/>';
+        return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + xlsxEsc(c.v) + '</t></is></c>';
+      }).join('') + '</row>';
+    }).join('');
+    var sheet = HEAD + '<worksheet ' + NS + '>' +
+      (spec.freezeRows ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="' + spec.freezeRows + '" topLeftCell="A' + (spec.freezeRows + 1) +
+        '" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' : '') +
+      '<sheetFormatPr defaultRowHeight="15"/>' +
+      (spec.widths ? '<cols>' + spec.widths.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('') + '</cols>' : '') +
+      '<sheetData>' + sd + '</sheetData>' + (spec.filter ? '<autoFilter ref="' + spec.filter + '"/>' : '') +
+      '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>' +
+      '<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/></worksheet>';
+    var fdb = spec.filter ? '<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">\'' + sheetName + '\'!' +
+      spec.filter.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2') + '</definedName></definedNames>' : '';
+    var files = [
+      ['[Content_Types].xml', HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+      ['_rels/.rels', HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+      ['xl/workbook.xml', HEAD + '<workbook ' + NS + '><sheets><sheet name="' + sheetName + '" sheetId="1" r:id="rId1"/></sheets>' + fdb + '</workbook>'],
+      ['xl/_rels/workbook.xml.rels', HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+      ['xl/styles.xml', styles],
+      ['xl/worksheets/sheet1.xml', sheet]
+    ];
+    return zipStore(files.map(function (f) { return { name: f[0], data: new TextEncoder().encode(f[1]) }; }));
+  }
+  var CRC_T = (function () { var t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  /** Zip sin compresión (método 0). */
+  function zipStore(files) {
+    var d = new Date(), dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xFFFF,
+        dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xFFFF;
+    var parts = [], central = [], off = 0;
+    var le = function (arr, n, bytes) { for (var i = 0; i < bytes; i++) arr.push((n >>> (8 * i)) & 0xFF); };
+    files.forEach(function (f) {
+      var name = new TextEncoder().encode(f.name), crc = crc32(f.data), h = [];
+      le(h, 0x04034b50, 4); le(h, 20, 2); le(h, 0x0800, 2); le(h, 0, 2); le(h, dt, 2); le(h, dd, 2);
+      le(h, crc, 4); le(h, f.data.length, 4); le(h, f.data.length, 4); le(h, name.length, 2); le(h, 0, 2);
+      parts.push(new Uint8Array(h), name, f.data);
+      var c = [];
+      le(c, 0x02014b50, 4); le(c, 20, 2); le(c, 20, 2); le(c, 0x0800, 2); le(c, 0, 2); le(c, dt, 2); le(c, dd, 2);
+      le(c, crc, 4); le(c, f.data.length, 4); le(c, f.data.length, 4); le(c, name.length, 2); le(c, 0, 2); le(c, 0, 2);
+      le(c, 0, 2); le(c, 0, 2); le(c, 0, 4); le(c, off, 4);
+      central.push(new Uint8Array(c), name);
+      off += h.length + name.length + f.data.length;
+    });
+    var cdSize = central.reduce(function (a, p) { return a + p.length; }, 0), e = [];
+    le(e, 0x06054b50, 4); le(e, 0, 2); le(e, 0, 2); le(e, files.length, 2); le(e, files.length, 2); le(e, cdSize, 4); le(e, off, 4); le(e, 0, 2);
+    var all = parts.concat(central, [new Uint8Array(e)]), total = all.reduce(function (a, p) { return a + p.length; }, 0);
+    var out = new Uint8Array(total), p = 0;
+    all.forEach(function (x) { out.set(x, p); p += x.length; });
+    return out;
+  }
+  // XLSX-END
+
+  // Logotipo para la imagen: el mismo SVG de Logo.html (manual de identidad), precargado
+  var LOGO_IMG = new Image();
+  (function () { var svg = document.querySelector('header .logo svg'); if (svg) LOGO_IMG.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg.outerHTML); })();
+  if (document.fonts && document.fonts.load) { try { document.fonts.load('700 20px Montserrat'); } catch (e) { /* sin la fuente: Arial */ } }
+
+  /** Dibuja la tabla en un canvas (sin librerías): título, resumen, filas cargadas en verde y leyenda. */
+  function drawReport(r) {
+    // Colores y tipografía del manual de identidad ISDIN (Identidad.html): tablas en Arial, titular en Montserrat
+    var C = { paper: '#FFFFFF', chrome: '#F5F3EE', line: '#E1E1E1', ink: '#414141', strong: '#2E2E2B', muted: '#6D6D6D', okFill: '#C8E6C9', okText: '#086124', peach70: '#D09375' };
+    var SC = 2, PAD = 24, CP = 8, LH = 16, FONT = '13px Arial, Helvetica, sans-serif', FONTB = 'bold 12px Arial, Helvetica, sans-serif';
+    var FONT_T = '700 20px Montserrat, Arial, Helvetica, sans-serif';
+    var cv = document.createElement('canvas'), cx = cv.getContext('2d');
+    var wrap = function (text, w, font) {
+      cx.font = font; text = String(text == null ? '' : text);
+      if (!text) return [''];
+      var words = text.split(/\s+/), lines = [], cur = '';
+      words.forEach(function (wd) {
+        while (cx.measureText(wd).width > w) {   // palabra más ancha que la columna (correos): se corta
+          var k = wd.length; while (k > 1 && cx.measureText(wd.slice(0, k)).width > w) k--;
+          if (cur) { lines.push(cur); cur = ''; }
+          lines.push(wd.slice(0, k)); wd = wd.slice(k);
+        }
+        var t = cur ? cur + ' ' + wd : wd;
+        if (cx.measureText(t).width <= w) cur = t; else { if (cur) lines.push(cur); cur = wd; }
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    };
+    // anchos de columna
+    var widths = REP_COLS.map(function (c) {
+      cx.font = FONTB; var w = cx.measureText(c.h).width;
+      cx.font = FONT; r.rows.forEach(function (x) { w = Math.max(w, cx.measureText(String(x[c.k] == null ? '' : x[c.k])).width); });
+      return Math.ceil(Math.min(w, c.max)) + CP * 2;
+    });
+    var tableW = widths.reduce(function (a, b) { return a + b; }, 0);
+    var cells = r.rows.map(function (x) { return REP_COLS.map(function (c, i) { return wrap(x[c.k], widths[i] - CP * 2, FONT); }); });
+    var rowH = cells.map(function (cs) { return Math.max.apply(null, cs.map(function (l) { return l.length; })) * LH + CP * 2 - 4; });
+    var headH = 30, titleH = 66, legendH = 40, logoH = 30, logoW = LOGO_IMG.complete && LOGO_IMG.naturalWidth ? logoH * LOGO_IMG.naturalWidth / LOGO_IMG.naturalHeight : 0;
+    cx.font = FONT_T; var titleText = 'Ventas de eventos · ' + r.mes + ' ' + r.anio;
+    var minW = cx.measureText(titleText).width + logoW + 60;
+    if (tableW < minW) { widths[widths.length - 1] += minW - tableW; tableW = minW; }   // espacio para título y logotipo
+    var W = tableW + PAD * 2, H = PAD + titleH + headH + rowH.reduce(function (a, b) { return a + b; }, 0) + legendH + PAD;
+    cv.width = W * SC; cv.height = H * SC; cx.scale(SC, SC);
+    cx.fillStyle = C.paper; cx.fillRect(0, 0, W, H);
+    cx.textBaseline = 'top';
+    // título y resumen
+    cx.fillStyle = C.strong; cx.font = FONT_T;
+    cx.fillText(titleText, PAD, PAD);
+    if (logoW) cx.drawImage(LOGO_IMG, W - PAD - logoW, PAD - 2, logoW, logoH);   // logotipo oscuro sobre blanco
+    cx.fillStyle = C.muted; cx.font = FONT;
+    var hoy = new Date();
+    cx.fillText(r.total + ' eventos · ' + r.cargados + ' ya cargados · ' + r.faltan + ' faltan por cargar · ' +
+      (r.show === 'falta' ? 'solo los que faltan · ' : r.show === 'cargado' ? 'solo los ya cargados · ' : '') + 'generado ' +
+      ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear(), PAD, PAD + 32);
+    // encabezado
+    var y = PAD + titleH, x = PAD;
+    cx.fillStyle = C.chrome; cx.fillRect(PAD, y, tableW, headH);
+    cx.fillStyle = C.strong; cx.font = FONTB;
+    REP_COLS.forEach(function (c, i) { cx.fillText(c.h, x + CP, y + 9); x += widths[i]; });
+    y += headH;
+    // filas
+    r.rows.forEach(function (row, ri) {
+      cx.fillStyle = row.cargado ? C.okFill : C.paper;
+      cx.fillRect(PAD, y, tableW, rowH[ri]);
+      if (row.cargado) { cx.fillStyle = C.okText; cx.fillRect(PAD, y, 4, rowH[ri]); }
+      cx.fillStyle = C.ink; cx.font = FONT;
+      x = PAD;
+      cells[ri].forEach(function (lines, ci) {
+        lines.forEach(function (ln, li) { cx.fillText(ln, x + CP, y + CP - 2 + li * LH); });
+        x += widths[ci];
+      });
+      cx.strokeStyle = C.line; cx.lineWidth = 1;
+      cx.beginPath(); cx.moveTo(PAD, y + rowH[ri] + 0.5); cx.lineTo(PAD + tableW, y + rowH[ri] + 0.5); cx.stroke();
+      y += rowH[ri];
+    });
+    // líneas verticales y borde
+    x = PAD; cx.strokeStyle = C.line;
+    widths.forEach(function (w) { x += w; cx.beginPath(); cx.moveTo(x + 0.5, PAD + titleH); cx.lineTo(x + 0.5, y); cx.stroke(); });
+    cx.strokeRect(PAD + 0.5, PAD + titleH + 0.5, tableW, y - PAD - titleH);
+    // leyenda
+    y += 14; cx.font = FONT;
+    var lx = PAD;
+    if (r.cargados) {
+      cx.fillStyle = C.okFill; cx.fillRect(lx, y, 16, 16); cx.strokeStyle = C.okText; cx.strokeRect(lx + 0.5, y + 0.5, 16, 16);
+      cx.fillStyle = C.ink; cx.fillText('Ya cargado en la PLANTILLA', lx + 24, y + 2);
+      lx += 24 + cx.measureText('Ya cargado en la PLANTILLA').width + 24;
+    }
+    if (r.faltan) {
+      cx.fillStyle = C.paper; cx.fillRect(lx, y, 16, 16); cx.strokeStyle = '#A9A9A9'; cx.strokeRect(lx + 0.5, y + 0.5, 16, 16);
+      cx.fillStyle = C.ink; cx.fillText('Falta cargar las ventas', lx + 24, y + 2);
+    }
+    return cv;
+  }
+
+  $('btnRepPng').onclick = function () {
+    var cv = drawReport(repView()), url = cv.toDataURL('image/png');
+    $('repImg').src = url; $('repImgBox').classList.remove('hidden');
+    try {
+      var a = document.createElement('a'); a.href = url; a.download = repFileName();
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch (e) { /* queda la imagen en pantalla para guardarla con clic derecho */ }
+  };
+  $('btnRepCopy').onclick = function () {
+    var cv = drawReport(repView());
+    $('repImg').src = cv.toDataURL('image/png'); $('repImgBox').classList.remove('hidden');
+    cv.toBlob(function (blob) {
+      try {
+        navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(
+          function () { msg($('repMsg'), 'good', 'Imagen copiada: pégala en el chat o correo con Ctrl+V.'); },
+          function () { msg($('repMsg'), 'info', 'El navegador no dejó copiar directo: clic derecho sobre la imagen de abajo → Copiar imagen.'); });
+      } catch (e) { msg($('repMsg'), 'info', 'El navegador no dejó copiar directo: clic derecho sobre la imagen de abajo → Copiar imagen.'); }
+    }, 'image/png');
+  };
+
+  /** Abre un archivo de la carpeta en el flujo normal (pasos 1–5). */
+  function openDriveFile(id) {
+    var f = (S.inbox.files || []).filter(function (x) { return x.id === id; })[0];
+    if (f && f.estado === 'EVENTO YA CARGADO' && !confirm(f.idResumen + ' ya tiene ventas en la PLANTILLA:\n' + f.detalle + '\n\nÁbrelo solo si este archivo trae ventas distintas (otro día u otra página). ¿Continuar?')) return;
+    resetBelow();
+    var show = function (res) {
+      var d = res.driveFile;
+      S.file = { name: d.path, driveId: d.id, driveVersion: d.version };
+      S.idHint = d.path;
+      if (res.tableRows) S.tableRows = res.tableRows;
+      if (res._grid) S.tableRows = res._grid;
+      $('fileInfo').innerHTML = 'Desde la carpeta: <a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.path) + '</a>' + (res.sheet ? ' · hoja "' + esc(res.sheet) + '"' : '');
+      afterExtract(res);
+      $('cardFile').scrollIntoView({ behavior: 'smooth' });
+    };
+    var viaServer = function () { call('api_extractDriveFile', id, 'Leyendo ' + (f ? f.path : 'archivo') + '…').then(show); };
+    if ($('engine').value !== 'cols') return viaServer();
+    // Fotos: se leen por columnas en este navegador
+    call('api_driveImage', id, 'Abriendo ' + (f ? f.path : 'archivo') + '…').then(function (im) {
+      if (!im) return viaServer();
+      extractImage({ name: im.driveFile.name }, '', 'data:' + im.mime + ';base64,' + im.data)
+        .then(function (res) { res.driveFile = im.driveFile; show(res); });
+    });
+  }
+
+  $('btnRefresh').onclick = function () {
+    call('api_refreshMasters', undefined, 'Releyendo EAN Master y PDV Master… (puede tardar 1–2 min)').then(function (r) {
+      msg($('globalMsg'), 'good', 'Master actualizados: ' + r.ean + ' códigos de producto, ' + r.puntos + ' PDV.');
+    });
+  };
+
+  // ---------------------------------------------------------------- 1. Archivo
+  var drop = $('drop');
+  drop.onclick = function () { $('fileInput').click(); };
+  drop.ondragover = function (e) { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = function () { drop.classList.remove('over'); };
+  drop.ondrop = function (e) {
+    e.preventDefault(); drop.classList.remove('over');
+    var it = e.dataTransfer.items && e.dataTransfer.items[0];
+    var entry = it && it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+    if (entry && entry.isDirectory) return readDirEntry(entry);
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  };
+  $('fileInput').onchange = function () { if (this.files[0]) handleFile(this.files[0]); };
+  $('btnFolder').onclick = function () { $('folderInput').click(); };
+  $('folderInput').onchange = function () {
+    var files = Array.prototype.slice.call(this.files || []);
+    if (!files.length) return;
+    var rel = files[0].webkitRelativePath || '';
+    handleFolder(rel.split('/').slice(0, -1).join('/') || 'carpeta', files);
+  };
+
+  /** Carpeta arrastrada: lee sus archivos (sin subcarpetas). */
+  function readDirEntry(dir) {
+    var reader = dir.createReader(), entries = [];
+    var next = function () {
+      reader.readEntries(function (batch) {
+        if (batch.length) { entries = entries.concat(Array.prototype.slice.call(batch)); return next(); }
+        var fileEntries = entries.filter(function (x) { return x.isFile; });
+        var files = [], pending = fileEntries.length;
+        if (!pending) return msg($('globalMsg'), 'err', 'La carpeta "' + dir.name + '" está vacía.');
+        fileEntries.forEach(function (fe) {
+          fe.file(function (f) { files.push(f); if (--pending === 0) handleFolder(dir.name, files); },
+            function () { if (--pending === 0) handleFolder(dir.name, files); });
+        });
+      });
+    };
+    next();
+  }
+
+  var TABLE_EXT = ['xlsx', 'xls', 'xlsm', 'csv'];
+  function extOf(f) { return (f.name.split('.').pop() || '').toLowerCase(); }
+  function isReadable(f) { var x = extOf(f); return TABLE_EXT.indexOf(x) >= 0 || x === 'pdf' || (f.type.indexOf('image/') === 0 && !/heic|heif/.test(x)); }
+
+  function handleFile(file) {
+    resetBelow();
+    S.file = file;
+    S.idHint = file.webkitRelativePath || file.name;
+    var ext = extOf(file);
+    $('fileInfo').textContent = file.name + ' · ' + Math.round(file.size / 1024) + ' KB';
+    if (TABLE_EXT.indexOf(ext) >= 0) return readTable(file, ext);
+    if (/heic|heif/.test(ext)) return msg($('globalMsg'), 'err', 'Las fotos HEIC de iPhone no se pueden leer. Envía la foto como JPG o haz una captura de pantalla.');
+    if (file.type.indexOf('image/') === 0) return extractImage(file).then(function (res) { if (res._grid) S.tableRows = res._grid; afterExtract(res); });
+    if (ext === 'pdf') return extractBinary(file, 'pdf').then(afterExtract);
+    msg($('globalMsg'), 'err', 'Formato no soportado: .' + ext);
+  }
+
+  /** Carpeta: el nombre de la carpeta da el ID RESUMEN; se leen todas sus fotos/PDF/tablas y se juntan las filas. */
+  function handleFolder(folderName, files) {
+    var ok = files.filter(isReadable).sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+    var skipped = files.length - ok.length;
+    if (!ok.length) return msg($('globalMsg'), 'err', 'La carpeta "' + folderName + '" no tiene fotos, PDF ni tablas que se puedan leer.');
+    if (ok.length === 1) { handleFile(ok[0]); S.idHint = folderName + '/' + ok[0].name; S.file = { name: folderName + '/' + ok[0].name }; return; }
+    resetBelow();
+    S.file = { name: folderName + ' (' + ok.length + ' archivos)' };
+    S.idHint = folderName + '/' + ok.map(function (f) { return f.name; }).join(' ');
+    $('fileInfo').textContent = 'Carpeta ' + folderName + ' · ' + ok.length + ' archivos' + (skipped ? ' (' + skipped + ' omitidos por formato)' : '');
+    var merged = { source: 'carpeta', rows: [], dates: { from: '', to: '' }, text: '' }, i = 0;
+    var step = function () {
+      if (i >= ok.length) return afterExtract(merged);
+      var f = ok[i++], x = extOf(f);
+      var p = TABLE_EXT.indexOf(x) >= 0 ? extractTableAuto(f, x) : x === 'pdf' ? extractBinary(f, 'pdf', '(' + i + '/' + ok.length + ') ') : extractImage(f, '(' + i + '/' + ok.length + ') ');
+      p.then(function (res) {
+        // Cada archivo de la carpeta puede ser de un evento distinto ("ACT-0123.jpg", "ACT-0124.jpg")
+        var fid = /(?:^|[^A-Z0-9])((?:ACT|EVT)[\s_\-.#]*\d{1,7})(?!\d)/i.exec(f.name);
+        (res.rows || []).forEach(function (r) { if (fid && !r.eventId) r.eventId = fid[1]; });
+        merged.rows = merged.rows.concat(res.rows || []);
+        merged.titleIds = (merged.titleIds || []).concat(res.titleIds || []);
+        if (res.dates && res.dates.from && (!merged.dates.from || res.dates.from < merged.dates.from)) merged.dates.from = res.dates.from;
+        var to = res.dates && (res.dates.to || res.dates.from);
+        if (to && (!merged.dates.to || to > merged.dates.to)) merged.dates.to = to;
+        if (res.text) merged.text += (merged.text ? '\n\n' : '') + '=== ' + f.name + ' ===\n' + res.text;
+        step();
+      }, function () { step(); });
+    };
+    step();
+  }
+
+  // ---------------------------------------------------------------- Fotos de tablas: lectura por columnas en el navegador
+  // Tesseract.js (OCR con la posición de cada palabra) corre en este navegador: la imagen no sale del equipo.
+  // Con las posiciones se rearman filas y columnas y la tabla pasa por el mismo mapeo de columnas que un Excel.
+  var TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  var tessWorker = null;
+  function tesseract() {
+    if (tessWorker) return tessWorker;
+    tessWorker = new Promise(function (resolve, reject) {
+      var go = function () {
+        window.Tesseract.createWorker('spa')
+          .then(function (w) { return w.setParameters({ preserve_interword_spaces: '1' }).then(function () { return w; }); })
+          .then(resolve, reject);
+      };
+      if (window.Tesseract) return go();
+      var s = document.createElement('script');
+      s.src = TESS_URL; s.crossOrigin = 'anonymous';
+      s.onload = go; s.onerror = function () { reject(new Error('no se pudo cargar el lector de tablas')); };
+      document.head.appendChild(s);
+    });
+    tessWorker.catch(function () { tessWorker = null; });
+    return tessWorker;
+  }
+  function withTimeout(p, ms, what) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error(what + ' tardó demasiado')); }, ms);
+      p.then(function (x) { clearTimeout(t); resolve(x); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+  function loadImg(src) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('no se pudo abrir la imagen')); };
+      img.src = src;
+    });
+  }
+
+  /** Imagen → tabla (array 2D). Amplía las capturas pequeñas, pasa a blanco y negro y borra la cuadrícula antes del OCR. */
+  function imageToGrid(img, label) {
+    var sc = Math.max(0.6, Math.min(4, 4000 / img.width));
+    if (img.width * img.height * sc * sc > 24e6) sc = Math.sqrt(24e6 / (img.width * img.height));
+    var raw = document.createElement('canvas');
+    raw.width = Math.round(img.width * sc); raw.height = Math.round(img.height * sc);
+    var rx = raw.getContext('2d'); rx.imageSmoothingQuality = 'high'; rx.drawImage(img, 0, 0, raw.width, raw.height);
+    var c = document.createElement('canvas'); c.width = raw.width; c.height = raw.height; c.getContext('2d').drawImage(raw, 0, 0);
+    var seps = gridLines(raw, 0, raw.height, 0, raw.width);
+    prepForOcr(c);
+    maskLines(c, seps, Math.max(3, sc * 2));
+    busy(true, label + ' (la primera vez descarga el lector, unos segundos)');
+    return withTimeout(tesseract(), 60000, 'La descarga del lector')
+      .then(function (w) { return withTimeout(w.recognize(c), 120000, 'La lectura'); })
+      .then(function (r) { busy(false); return gridFromWords(r.data.words || [], raw, { seps: seps }); },
+        function (e) { busy(false); throw e; });
+  }
+  /** ¿Parece una tabla? Al menos 2 filas con 2 columnas con contenido. */
+  function looksLikeTable(grid) {
+    if (!grid || grid.length < 2) return false;
+    var ncol = grid.reduce(function (m, r) { return Math.max(m, r.length); }, 0);
+    var full = 0;
+    for (var c = 0; c < ncol; c++) if (grid.filter(function (r) { return r[c]; }).length >= grid.length * 0.5) full++;
+    return full >= 2;
+  }
+  /** Foto → filas. Por columnas si se puede; si no, OCR de Google (o Claude, si está elegido). */
+  function extractImage(file, prefix, dataUrl) {
+    if ($('engine').value !== 'cols') return extractBinary(file, 'image', prefix);
+    var fallback = function (why) {
+      var notice = 'No se pudo leer la foto por columnas (' + why + '). Se usó el OCR de Google: revisa el resultado o corrige el texto leído.';
+      var tag = function (res) { res.notice = notice; return res; };
+      return (dataUrl ? call('api_extract', { kind: 'image', name: file.name, mimeType: dataUrl.split(';')[0].slice(5), data: dataUrl.split(',')[1], engine: 'ocr' }, 'Leyendo la foto ' + file.name + '…')
+        : extractBinary(file, 'image', prefix)).then(tag);
+    };
+    var src = dataUrl || URL.createObjectURL(file);
+    return loadImg(src)
+      .then(function (img) { if (!dataUrl) URL.revokeObjectURL(src); return imageToGrid(img, (prefix || '') + 'Leyendo la tabla de ' + file.name + '…'); })
+      .then(function (grid) {
+        if (!looksLikeTable(grid)) return fallback('no se encontró una tabla');
+        return call('api_extract', { kind: 'table', name: file.name, rows: grid }, 'Interpretando columnas…').then(function (res) {
+          if (!res.rows.length) return fallback('no se encontraron productos en la tabla');
+          res._grid = grid; res.fromImage = true;
+          return res;
+        });
+      }, function (e) { return fallback(e && e.message || 'error'); });
+  }
+  $('engine').onchange = function () { try { localStorage.setItem('lv_lector_fotos', this.value); } catch (e) { } };
+
+// IMGGRID-BEGIN
+  /**
+   * Imagen de una tabla → filas y columnas (array 2D de textos), con la posición de cada palabra que da el OCR.
+   * Columnas: por las líneas verticales de la cuadrícula (capturas de Excel) o, si no hay, por los espacios
+   * vacíos que se repiten en todas las filas.
+   */
+  function gridFromWords(words, canvas, opts) {
+    words = (words || []).filter(function (w) { return w.text && /\S/.test(w.text) && w.bbox; })
+      .map(function (w) { var b = w.bbox; return { t: String(w.text).trim(), x0: b.x0, x1: b.x1, y0: b.y0, y1: b.y1, xc: (b.x0 + b.x1) / 2, yc: (b.y0 + b.y1) / 2, h: b.y1 - b.y0 }; })
+      .filter(function (w) { return w.h > 2 && !/^[|\[\]_—–\-]+$/.test(w.t); });
+    if (!words.length) return [];
+    var hs = words.map(function (w) { return w.h; }).sort(function (a, b) { return a - b; });
+    var hMed = hs[Math.floor(hs.length / 2)];
+    // 1) filas: palabras con el centro vertical a menos de media altura
+    words.sort(function (a, b) { return a.yc - b.yc; });
+    var rows = [];
+    words.forEach(function (w) {
+      var r = rows[rows.length - 1];
+      if (r && Math.abs(w.yc - r.yc) < hMed * 0.55) { r.w.push(w); r.yc = (r.yc * (r.w.length - 1) + w.yc) / r.w.length; }
+      else rows.push({ yc: w.yc, y0: w.y0, w: [w] });
+    });
+    rows.forEach(function (r) { r.y0 = Math.min.apply(null, r.w.map(function (w) { return w.y0; })); r.y1 = Math.max.apply(null, r.w.map(function (w) { return w.y1; })); });
+    var top = rows[0].y0, bottom = rows[rows.length - 1].y1;
+    var minX = Math.min.apply(null, words.map(function (w) { return w.x0; })), maxX = Math.max.apply(null, words.map(function (w) { return w.x1; }));
+    // 2) separadores de columna
+    var seps = opts && opts.seps ? opts.seps.slice() : (canvas ? gridLines(canvas, top, bottom, minX, maxX) : []);
+    if (seps.length < 2) seps = gapSeparators(rows, hMed, minX, maxX);
+    seps.sort(function (a, b) { return a - b; });
+    var ncol = seps.length + 1;
+    var colOf = function (x) { var c = 0; while (c < seps.length && x > seps[c]) c++; return c; };
+    var table = rows.map(function (r) {
+      var cells = []; for (var c = 0; c < ncol; c++) cells.push([]);
+      r.w.sort(function (a, b) { return a.x0 - b.x0; }).forEach(function (w) { cells[colOf(w.xc)].push(w.t); });
+      return cells.map(function (c) { return cleanCell(c.join(' ')); });
+    });
+    // columnas que quedaron vacías en todas las filas: fuera
+    var used = []; for (var c = 0; c < ncol; c++) used.push(table.some(function (r) { return r[c]; }));
+    return table.map(function (r) { return r.filter(function (_, c) { return used[c]; }); });
+  }
+
+  /** Líneas verticales de la cuadrícula: columnas de píxeles que contrastan con sus vecinas en casi toda la altura. */
+  function gridLines(canvas, top, bottom, minX, maxX) {
+    var W = canvas.width, H = canvas.height;
+    var y0 = Math.max(0, Math.floor(top)), y1 = Math.min(H, Math.ceil(bottom));
+    if (y1 - y0 < 4) return [];
+    var data = canvas.getContext('2d').getImageData(0, y0, W, y1 - y0).data, h = y1 - y0;
+    var g = function (x, y) { var i = (y * W + x) * 4; return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]; };
+    // línea de cuadrícula: 1–3 px más claros (o más oscuros) que lo que hay a los lados, en casi toda la altura
+    var score = [];
+    for (var x = 0; x < W; x++) {
+      if (x < 4 || x > W - 5) { score.push(0); continue; }
+      var up = 0, dn = 0;
+      for (var y = 0; y < h; y++) {
+        var v = g(x, y), l = g(x - 4, y), r = g(x + 4, y);
+        if (v - l > 12 && v - r > 12) up++; else if (l - v > 12 && r - v > 12) dn++;
+      }
+      score.push(Math.max(up, dn) / h);
+    }
+    var seps = [], x = 0;
+    while (x < W) {
+      if (score[x] >= 0.8) {
+        var s = x; while (x < W && score[x] >= 0.8) x++;
+        var c = (s + x - 1) / 2;
+        if (c > minX - 2 && c < maxX + 2 && (!seps.length || c - seps[seps.length - 1] > 6)) seps.push(c);
+      } else x++;
+    }
+    return seps;
+  }
+
+  /** Sin cuadrícula: espacios en blanco que se repiten en casi todas las filas (columnas alineadas). */
+  function gapSeparators(rows, hMed, minX, maxX) {
+    var span = Math.ceil(maxX - minX) + 1, occ = new Array(span);
+    for (var i = 0; i < span; i++) occ[i] = 0;
+    rows.forEach(function (r) {
+      var mark = {};
+      r.w.forEach(function (w) { for (var x = Math.floor(w.x0 - minX); x <= Math.ceil(w.x1 - minX); x++) mark[x] = 1; });
+      for (var k in mark) if (k >= 0 && k < span) occ[k]++;
+    });
+    var limit = Math.max(0, Math.floor(rows.length * 0.15)), seps = [], x = 0;
+    while (x < span) {
+      if (occ[x] <= limit) {
+        var s = x; while (x < span && occ[x] <= limit) x++;
+        if (x - s >= hMed * 0.8 && s > 0 && x < span) seps.push(minX + (s + x) / 2);
+      } else x++;
+    }
+    return seps;
+  }
+// IMGGRID-END
+// IMGPREP-BEGIN
+  /** Prepara la imagen para el OCR: gris, umbral (Otsu) y filas de fondo oscuro invertidas (encabezados blancos sobre azul). */
+  function prepForOcr(canvas) {
+    var ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+    var im = ctx.getImageData(0, 0, W, H), d = im.data, n = W * H, hist = new Array(256), i, y, x;
+    for (i = 0; i < 256; i++) hist[i] = 0;
+    var gray = new Uint8Array(n);
+    for (i = 0; i < n; i++) { var v = Math.round(0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]); gray[i] = v; hist[v]++; }
+    var sum = 0; for (i = 0; i < 256; i++) sum += i * hist[i];
+    var sumB = 0, wB = 0, best = 0, T = 128;
+    for (i = 0; i < 256; i++) { wB += hist[i]; if (!wB) continue; var wF = n - wB; if (!wF) break; sumB += i * hist[i];
+      var mB = sumB / wB, mF = (sum - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF); if (between > best) { best = between; T = i; } }
+    for (y = 0; y < H; y++) {
+      var dark = 0; for (x = 0; x < W; x++) if (gray[y * W + x] < T) dark++;
+      var inv = dark > W * 0.5;
+      for (x = 0; x < W; x++) { var p = y * W + x, b = (gray[p] < T) !== inv ? 0 : 255; d[p * 4] = d[p * 4 + 1] = d[p * 4 + 2] = b; d[p * 4 + 3] = 255; }
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+// IMGPREP-END
+// IMGMASK-BEGIN
+  /** Borra (pinta de blanco) las líneas verticales de la cuadrícula para que el OCR no las lea como "|", "]" o ")". */
+  function maskLines(canvas, seps, halfWidth) {
+    var ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff';
+    (seps || []).forEach(function (x) { ctx.fillRect(Math.round(x - halfWidth), 0, Math.round(2 * halfWidth), canvas.height); });
+  }
+  function cleanCell(s) { return String(s || '').replace(/^[|\[\](){}!¦‘’“”"'`.,;:_—–\-\s]+|[|\[\](){}!¦‘’“”"'`,;:_—–\-\s]+$/g, '').replace(/\s+/g, ' '); }
+// IMGMASK-END
+
+  function extractBinary(file, kind, prefix) {
+    return new Promise(function (resolve, reject) {
+      var send = function (b64, mime) {
+        var engine = S.boot && S.boot.claude && $('engine').value === 'claude' ? 'claude' : 'ocr';
+        call('api_extract', { kind: kind, name: file.name, mimeType: mime, data: b64, engine: engine }, (prefix || '') + (kind === 'pdf' ? 'Leyendo PDF ' : 'Leyendo la foto ') + file.name + '…').then(resolve, reject);
+      };
+      if (kind === 'image' && (file.size > 3 * 1024 * 1024)) return resizeImage(file, function (b64) { send(b64, 'image/jpeg'); });
+      var fr = new FileReader();
+      fr.onload = function () { send(String(fr.result).split(',')[1], file.type || (kind === 'pdf' ? 'application/pdf' : 'image/jpeg')); };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+
+  /** Tabla dentro de una carpeta: primera hoja con datos, columnas detectadas solas. */
+  function extractTableAuto(file, ext) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        try {
+          var wb = workbookFrom(fr.result, ext);
+          var name = wb.SheetNames.filter(function (n) { var r = wb.Sheets[n]['!ref']; return r && r !== 'A1'; })[0] || wb.SheetNames[0];
+          call('api_extract', { kind: 'table', name: file.name, rows: sheetRows(wb, name) }, 'Interpretando ' + file.name + '…').then(resolve, reject);
+        } catch (e) { msg($('globalMsg'), 'err', 'No se pudo leer ' + file.name + ': ' + e.message); reject(e); }
+      };
+      fr.readAsArrayBuffer(file);
+    });
+  }
+  function workbookFrom(buf, ext) {
+    if (ext === 'csv') {
+      var text = new TextDecoder('utf-8').decode(new Uint8Array(buf));
+      var first = text.split(/\r?\n/)[0] || '';
+      var fs = first.split(';').length > first.split(',').length ? ';' : ',';
+      return XLSX.read(text, { type: 'string', FS: fs, raw: true });
+    }
+    return XLSX.read(new Uint8Array(buf), { type: 'array' });
+  }
+  function sheetRows(wb, name) {
+    return XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' })
+      .slice(0, 5000).map(function (r) { return r.map(function (v) { return v == null ? '' : String(v); }); });
+  }
+
+  function resizeImage(file, cb) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var max = 2400, s = Math.min(1, max / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      cb(c.toDataURL('image/jpeg', 0.9).split(',')[1]);
+    };
+    img.onerror = function () { msg($('globalMsg'), 'err', 'No se pudo abrir la imagen.'); };
+    img.src = url;
+  }
+
+  function readTable(file, ext) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      try {
+        var wb;
+        if (ext === 'csv') {
+          var text = new TextDecoder('utf-8').decode(new Uint8Array(fr.result));
+          var first = text.split(/\r?\n/)[0] || '';
+          var fs = first.split(';').length > first.split(',').length ? ';' : ',';
+          wb = XLSX.read(text, { type: 'string', FS: fs, raw: true });
+        } else wb = XLSX.read(new Uint8Array(fr.result), { type: 'array' });
+        var names = wb.SheetNames.filter(function (n) { var r = wb.Sheets[n]['!ref']; return r && r !== 'A1'; });
+        var pick = function (name) {
+          var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' })
+            .slice(0, 5000).map(function (r) { return r.map(function (v) { return v == null ? '' : String(v); }); });
+          S.tableRows = rows;
+          call('api_extract', { kind: 'table', name: file.name, rows: rows }, 'Interpretando tabla…').then(afterExtract);
+        };
+        if (names.length > 1) {
+          $('tableMap').classList.remove('hidden');
+          $('tableMap').innerHTML = '<label>Este archivo tiene varias hojas. ¿Cuál tiene las ventas?</label>' +
+            names.map(function (n) { return '<button class="sheetPick" data-n="' + esc(n) + '">' + esc(n) + '</button> '; }).join('');
+          Array.prototype.forEach.call(document.querySelectorAll('.sheetPick'), function (b) { b.onclick = function () { pick(b.getAttribute('data-n')); }; });
+        } else pick(names[0] || wb.SheetNames[0]);
+      } catch (e) { msg($('globalMsg'), 'err', 'No se pudo leer el archivo: ' + e.message); }
+    };
+    fr.readAsArrayBuffer(file);
+  }
+
+  $('btnPaste').onclick = function () {
+    var t = $('pasteText').value.trim(); if (!t) return;
+    resetBelow(); S.file = { name: 'texto pegado' };
+    call('api_extract', { kind: 'text', text: t }, 'Interpretando…').then(afterExtract);
+  };
+  $('btnReparse').onclick = function () {
+    call('api_extract', { kind: 'text', text: $('rawText').value }, 'Interpretando…').then(afterExtract);
+  };
+
+  function afterExtract(res) {
+    msg($('globalMsg'), res.notice ? 'info' : '', res.notice || (res.fromImage ? 'Foto leída por columnas: revisa abajo qué columna es el código, la descripción y la cantidad.' : ''));
+    S.ext = res;
+    if (res.source === 'tabla') renderTableMap(res.table); else $('tableMap').classList.add('hidden');
+    if (res.text) { $('rawBox').classList.remove('hidden'); $('rawText').value = res.text; }
+    if (!res.rows.length) {
+      $('rawBox').open = true;
+      return msg($('globalMsg'), 'err', 'No se encontraron líneas de producto. Revisa el texto leído (abajo) o el mapeo de columnas, corrígelo y vuelve a interpretar.');
+    }
+    $('dFrom').value = res.dates.from || ''; $('dTo').value = res.dates.to || res.dates.from || '';
+    runMatch('');
+  }
+
+  var MAP_LABELS = { code: 'Código del cliente', ean: 'EAN', desc: 'Descripción', qty: 'Cantidad', pdv: 'PDV (nombre)', pdvCode: 'PDV (código)', date: 'Fecha', evento: 'Evento (ID RESUMEN)' };
+  function colName(c) { var s = ''; c++; while (c > 0) { var m = (c - 1) % 26; s = String.fromCharCode(65 + m) + s; c = Math.floor((c - 1) / 26); } return s; }
+  function renderTableMap(t) {
+    var box = $('tableMap'); box.classList.remove('hidden');
+    var rowsAll = S.tableRows || [];
+    var label = function (c) { return colName(c) + (t.headers[c] ? ' · ' + t.headers[c] : ''); };
+    var opts = function (sel) {
+      var o = '<option value="-1">—</option>';
+      for (var c = 0; c < t.ncols; c++) o += '<option value="' + c + '"' + (c === sel ? ' selected' : '') + '>' + esc(label(c)) + '</option>';
+      return o;
+    };
+    var hrOpts = '<option value="-1"' + (t.headerRow < 0 ? ' selected' : '') + '>Sin encabezado</option>';
+    for (var r = 0; r < Math.min(rowsAll.length, 10); r++) {
+      var txt = (rowsAll[r] || []).filter(function (x) { return String(x).trim(); }).slice(0, 4).join(' | ');
+      hrOpts += '<option value="' + r + '"' + (r === t.headerRow ? ' selected' : '') + '>Fila ' + (r + 1) + ': ' + esc(txt.slice(0, 50)) + '</option>';
+    }
+    // Vista previa: qué trae cada columna y para qué se está usando
+    var roleOf = {};
+    Object.keys(MAP_LABELS).forEach(function (k) { var c = t.map[k]; if (c != null && c >= 0) (roleOf[c] = roleOf[c] || []).push(MAP_LABELS[k]); });
+    var first = t.headerRow + 1, sample = rowsAll.slice(first, first + 6);
+    var prev = '';
+    if (rowsAll.length) {
+      prev = '<div class="tablewrap mapPrev"><table><thead><tr><th></th>';
+      for (var c = 0; c < t.ncols; c++) prev += '<th class="' + (roleOf[c] ? 'used' : '') + '">' + esc(label(c)) + (roleOf[c] ? '<br><span class="chip ok">' + esc(roleOf[c].join(' + ')) + '</span>' : '') + '</th>';
+      prev += '</tr></thead><tbody>' + sample.map(function (row, k) {
+        var h = '<tr><td class="muted">' + (first + k + 1) + '</td>';
+        for (var c = 0; c < t.ncols; c++) h += '<td class="' + (roleOf[c] ? 'used' : '') + '">' + esc(row[c] == null ? '' : row[c]) + '</td>';
+        return h + '</tr>';
+      }).join('') + '</tbody></table></div>';
+    }
+    box.innerHTML = '<label>Columnas detectadas' + (S.ext && S.ext.fromImage ? ' en la foto' : '') + ' — corrígelas si hace falta y pulsa "Aplicar columnas"</label>' +
+      '<p class="small muted" style="margin:2px 0 8px">Se cruza primero por <strong>Código del cliente</strong> o <strong>EAN</strong>; si no hay, por la <strong>Descripción</strong> (nombre aproximado). La <strong>Cantidad</strong> son las unidades vendidas.</p>' +
+      '<div class="row"><div><label>Fila de encabezados</label><select id="mapHeader">' + hrOpts + '</select></div>' +
+      Object.keys(MAP_LABELS).map(function (k) { return '<div><label>' + MAP_LABELS[k] + '</label><select data-k="' + k + '">' + opts(t.map[k]) + '</select></div>'; }).join('') +
+      '<div><button id="btnMap" class="primary">Aplicar columnas</button></div></div>' + prev;
+    var apply = function (headerChanged) {
+      var map = {};
+      Array.prototype.forEach.call(box.querySelectorAll('select[data-k]'), function (s) { map[s.getAttribute('data-k')] = +s.value; });
+      var hr = +$('mapHeader').value;
+      var payload = { kind: 'table', name: S.file.name, rows: S.tableRows, headerRow: hr };
+      if (!headerChanged) payload.map = map;   // otra fila de encabezado → se vuelven a detectar las columnas
+      call('api_extract', payload, 'Interpretando tabla…').then(function (res) { if (S.ext && S.ext.fromImage) res.fromImage = true; afterExtract(res); });
+    };
+    $('btnMap').onclick = function () { apply(false); };
+    $('mapHeader').onchange = function () { apply(true); };
+  }
+
+
+  // ---------------------------------------------------------------- 2. Cruce
+  $('btnRematch').onclick = function () { runMatch($('origin').value); };
+  $('origin').onchange = function () { runMatch(this.value); };
+
+  $('srcId').onchange = function () {
+    // ID escrito o corregido a mano: el cliente vuelve a tomarse del evento
+    S.idHint = this.value.trim();
+    if (S.ext) runMatch('');
+  };
+
+  function runMatch(origin) {
+    // IDs del título de la hoja ("Ventas ACT-0123 y ACT-0124") cuentan como parte del nombre
+    var hint = (S.idHint || '') + ((S.ext.titleIds || []).length ? ' ' + S.ext.titleIds.join(' ') : '');
+    call('api_match', { rows: S.ext.rows, origin: origin, from: $('dFrom').value, to: $('dTo').value, text: S.ext.text || '', idHint: hint }, 'Cruzando con EAN Master, PDV Master y Detalle eventos…')
+      .then(function (m) {
+        S.match = m;
+        S.splitOpen = null;
+        if (m.idFromName && m.idFromName.idResumen) $('srcId').value = m.idFromName.idResumen;
+        if (!$('dFrom').value && m.from) { $('dFrom').value = m.from; $('dTo').value = m.to || m.from; }
+        if (m.realigned) msg($('globalMsg'), 'info', 'El OCR había juntado nombres de varios productos: se reacomodaron ' + m.realigned + ' descripciones usando el EAN Master.');
+        S.products = m.products.map(function (p) { p._autoEan = p.ean; p._autoStatus = p.status; return p; });
+        S.groups = m.groups.map(function (g) {
+          var top = g.candidates[0];
+          g.mode = g.fromName || (top && top.score >= 0.75 && top.dateScore === 1) ? 'evento' : '';
+          g.idResumen = g.fromName || (g.mode ? top.idResumen : '');
+          g.manual = { nombre: '', tipo: '', from: $('dFrom').value, to: $('dTo').value };
+          // El archivo trae un ID que no está en "Detalle eventos": se carga con ese ID y el nombre que escriba el usuario
+          if (g.notFoundId) { g.mode = 'id_manual'; g.idResumen = g.notFoundId; g.notFound = true; g.lookup = null; }
+          return g;
+        });
+        renderClient(); renderProducts(); renderGroups(); renderPreview();
+      });
+  }
+
+  function renderClient() {
+    $('cardClient').classList.remove('hidden');
+    var c = S.match.client;
+    $('origin').value = c.selected || '';
+    var r = c.ranking[0];
+    $('clientInfo').innerHTML = !c.selected ? '<span style="color:var(--bad)">No se pudo detectar el cliente: elígelo de la lista.</span>'
+      : (r && r.origin === c.selected && c.totalCodes ? 'Detectado por códigos: ' + Math.round(r.score) + ' de ' + c.totalCodes + ' coinciden.' : 'Elegido manualmente.') +
+        (c.ranking.length > 1 ? ' Otros posibles: ' + c.ranking.slice(1, 4).map(function (x) { return esc(x.origin) + ' (' + Math.round(x.score) + ')'; }).join(', ') : '');
+    var f = S.match.idFromName, info = '';
+    if (f && f.idResumen) {
+      info = '<div class="msg good" style="margin:0"><strong>' + esc(f.idResumen) + '</strong> (tomado del nombre del archivo/carpeta) → ' +
+        'Cliente: <strong>' + esc(f.cliente) + '</strong> · PDV: <strong>' + esc(f.pdv || '(sin PDV)') + '</strong> · ' +
+        fmtD(f.inicio) + (f.fin && f.fin !== f.inicio ? '–' + fmtD(f.fin) : '') + (f.tipo ? ' · ' + esc(f.tipo) : '') +
+        (f.estado ? ' · ' + esc(f.estado) : '') +
+        (f.origin ? '<br><span class="small">Cliente en el EAN Master: ' + esc(f.origin) + ' (por ' + esc(f.originMethod) + ')</span>'
+          : '<br><span class="small">No se encontró este cliente en el EAN Master: elige el cliente de la lista para cruzar los códigos.</span>') +
+        (f.conflict ? '<br><span style="color:var(--warn)">⚠ Los códigos del archivo coinciden más con ' + esc(f.codesOrigin) + '. Revisa que el ID del nombre sea el correcto.</span>' : '') +
+        (f.others && f.others.length ? '<br><span class="small">También aparece en el nombre: ' + esc(f.others.join(', ')) + '. Si era otro, escríbelo en "ID RESUMEN".</span>' : '') +
+        (/RECHAZ|CANCEL/i.test(f.estado || '') ? '<br><span style="color:var(--bad)">⚠ Este evento está ' + esc(f.estado) + '.</span>' : '') +
+        (f.enPlantilla ? '<br><span style="color:var(--warn)">⚠ Este evento ya tiene ' + f.enPlantilla.filas + ' filas (' + f.enPlantilla.unidades + ' unidades) en la PLANTILLA. Carga este archivo solo si trae ventas distintas.</span>' : '') + '</div>';
+    } else if (f && f.notFound) {
+      info = '<div class="msg err" style="margin:0">El nombre trae <strong>' + esc(f.notFound) + '</strong>, pero ese ID no está en "Detalle eventos". Corrígelo arriba o elige el evento en el paso 4.</div>';
+    }
+    var evGroups = S.groups.filter(function (g) { return g.eventId; });
+    if (evGroups.length > 1 || (evGroups.length === 1 && !(f && f.idResumen === evGroups[0].eventId))) {
+      info = '<div class="msg good" style="margin:0 0 6px"><strong>Consolidado: ' + evGroups.length + (evGroups.length === 1 ? ' evento' : ' eventos') + ' en el archivo</strong> (ID RESUMEN leído en las filas): ' +
+        evGroups.map(function (g) {
+          var c = g.evInfo;
+          return '<br>• <strong>' + esc(g.eventId) + '</strong> · ' + g.rows.length + ' filas · ' + unitsOf(g.rows).file + ' unidades' +
+            (c ? ' · ' + esc(c.cliente) + ' · ' + esc(c.pdv || '(sin PDV)') + ' · ' + fmtD(c.inicio) + (c.fin && c.fin !== c.inicio ? '–' + fmtD(c.fin) : '') +
+              (/RECHAZ|CANCEL/i.test(c.estado || '') ? ' · <span style="color:var(--bad)">⚠ ' + esc(c.estado) + '</span>' : '') +
+              (c.enPlantilla ? ' · <span style="color:var(--warn)">⚠ ya tiene ' + c.enPlantilla.filas + ' filas en la PLANTILLA</span>' : '')
+              : ' · <span style="color:var(--bad)">no está en "Detalle eventos"</span>');
+        }).join('') + '<br><span class="small">Cada evento tiene su tabla y su total en el paso 3, y se carga con su propio ID.</span></div>' +
+        (f && f.idResumen ? '' : info);
+    } else if (f && f.others && f.others.length && !evGroups.length && S.groups.length === 1) {
+      info += '<div class="msg info" style="margin:6px 0 0">El nombre trae varios eventos (' + esc([f.idResumen].concat(f.others).join(', ')) + '), pero las filas no dicen a cuál pertenecen. ' +
+        'Si es un consolidado, agrega al archivo una columna con el ID RESUMEN de cada fila (o elige la columna "Evento" en el mapeo) y vuelve a cargarlo.</div>';
+    }
+    $('idInfo').innerHTML = info;
+  }
+
+  // ---------------------------------------------------------------- 3. Productos
+  var ST_LABEL = { ok: 'OK', revisar: 'Revisar', sin_cruce: 'Sin cruce', omitido: 'Omitido' };
+
+  /** Unidades de un grupo de filas: las que trae el archivo y las que se van a cargar (con EAN y sin omitir). */
+  function unitsOf(idxs) {
+    var file = 0, load = 0, n = 0;
+    idxs.forEach(function (i) {
+      var p = S.products[i]; if (!p) return;
+      var q = Number(p.qty) || 0;
+      file += q;
+      if (!p.omit && p.ean) { load += q; n++; }
+    });
+    return { file: Math.round(file * 100) / 100, load: Math.round(load * 100) / 100, n: n };
+  }
+  /** Consolidado: una tabla por evento cuando las filas traen su ID RESUMEN. */
+  function productBlocks() {
+    var byEvent = S.groups.length > 1 && S.groups.some(function (g) { return g.eventId; });
+    if (!byEvent) return [{ g: S.groups.length === 1 ? S.groups[0] : null, rows: S.products.map(function (_, i) { return i; }) }];
+    return S.groups.map(function (g) { return { g: g, rows: g.rows.slice().sort(function (a, b) { return a - b; }) }; });
+  }
+
+  function renderProducts() {
+    $('cardProducts').classList.remove('hidden');
+    var hasPdv = S.products.some(function (p) { return p.pdvText || p.pdvCode; });
+    var ncol = hasPdv ? 9 : 8;
+    var thead = '<thead><tr><th>#</th><th>Código</th><th>Descripción del cliente</th>' + (hasPdv ? '<th>PDV</th>' : '') +
+      '<th>Cant.</th><th>Producto ISDIN (EAN)</th><th>BU</th><th>Estado</th><th>Omitir</th></tr></thead>';
+    var blocks = productBlocks(), multi = blocks.length > 1;
+    var out = '';
+    blocks.forEach(function (b) {
+      var g = b.g, id = g ? (g.eventId || (g.mode && g.idResumen) || '') : '';
+      var c = g && g.evInfo;
+      var html = '';
+      if (multi) {
+        html += '<div class="evHead"><strong>Evento ' + esc(g.eventId || g.label) + '</strong>' +
+          (c ? '<span class="small">' + esc(c.cliente) + ' · ' + esc(c.pdv || '(sin PDV)') + ' · ' + fmtD(c.inicio) + (c.fin && c.fin !== c.inicio ? '–' + fmtD(c.fin) : '') + '</span>' +
+            (c.enPlantilla ? '<span class="chip revisar">ya cargado: ' + c.enPlantilla.filas + ' filas</span>' : '')
+            : (g.notFoundId ? '<span class="chip sin_cruce">no está en "Detalle eventos"</span>' : '')) +
+          '<span class="small muted">' + b.rows.length + ' filas</span></div>';
+      }
+      html += '<div class="tablewrap"><table class="prodTable">' + thead + '<tbody>';
+      b.rows.forEach(function (i) { html += productRow(S.products[i], i, hasPdv); });
+      var u = unitsOf(b.rows);
+      var diff = u.file !== u.load ? ' <span class="small">(en el archivo: ' + u.file + ')</span>' : '';
+      html += '<tr class="totalRow"><td></td><td colspan="' + (hasPdv ? 3 : 2) + '">Total ' + esc(id || 'del archivo') + '</td>' +
+        '<td>' + u.load + '</td><td colspan="' + (ncol - (hasPdv ? 5 : 4)) + '">unidades a cargar en ' + u.n + ' productos' + diff + '</td></tr>';
+      out += '<div class="evBlock">' + html + '</tbody></table></div></div>';
+    });
+    $('prodTables').innerHTML = out;
+    wireProducts();
+  }
+
+  function productRow(p, i, hasPdv) {
+    var html = '';
+    (function () {
+      var st = p.omit ? 'omitido' : p.status;
+      var sugg = (st !== 'ok' && !p.omit && p.candidates && p.candidates.length) ? '<div class="sugg">' +
+        (st === 'revisar' && p.ean ? '<button data-i="' + i + '" data-ean="' + esc(p.ean) + '"><strong>✓ Es correcto</strong></button>' : '') +
+        p.candidates.filter(function (c) { return c.ean !== p.ean; }).slice(0, 3).map(function (c) {
+          return '<button data-i="' + i + '" data-ean="' + esc(c.ean) + '" title="' + esc(c.via || '') + '">' + esc(c.producto) + ' · ' + Math.round(c.score * 100) + '%</button>';
+        }).join('') + '</div>' : '';
+      var multi = p.descParts && p.descParts.length > 1;
+      var descCell = esc(p.desc) +
+        (multi ? '<div class="splitHint">⚠ Parece que hay ' + p.descParts.length + ' productos en esta descripción</div>' : '') +
+        (S.splitOpen === i
+          ? '<div class="splitBox"><div class="small">Un producto por línea:</div>' +
+            '<textarea id="splitText" rows="' + Math.max(3, (p.descParts || [p.desc]).length + 1) + '">' + esc((p.descParts || [p.desc]).join('\n')) + '</textarea>' +
+            '<div><button id="splitShift" title="Los códigos y cantidades están bien; solo los nombres quedaron corridos">↓ Correr nombres a las filas siguientes</button>' +
+            '<button id="splitNew" title="Cada línea es un producto nuevo, sin código">＋ Crear filas nuevas</button>' +
+            '<button id="splitCancel">Cancelar</button></div></div>'
+          : '<div><button class="btnSplit" data-i="' + i + '" title="Separar descripciones que vienen juntas">✂ Separar</button></div>');
+      html += '<tr class="' + (p.omit ? 'is-omit' : '') + '"><td>' + (i + 1) + '</td><td>' + esc(p.code) + '</td><td>' + descCell + '</td>' +
+        (hasPdv ? '<td class="small">' + esc(p.pdvText || p.pdvCode || '') + '</td>' : '') +
+        '<td><input class="qty" data-i="' + i + '" value="' + esc(p.qty == null ? '' : p.qty) + '"></td>' +
+        '<td><input class="prod" list="catalog" data-i="' + i + '" value="' + esc(p.ean ? p.ean + ' · ' + (p.producto || '') : '') + '" placeholder="Busca producto o EAN…">' +
+        '<div class="small muted">' + esc(p.method || '') + (p.confidence && p.status !== 'ok' ? ' · ' + Math.round(p.confidence * 100) + '%' : '') + '</div>' + sugg + '</td>' +
+        '<td class="small">' + esc(p.bu || '') + '</td><td><span class="chip ' + st + '">' + ST_LABEL[st] + '</span></td>' +
+        '<td><input type="checkbox" class="omit" data-i="' + i + '"' + (p.omit ? ' checked' : '') + '></td></tr>';
+    })();
+    return html;
+  }
+
+  function wireProducts() {
+    var cnt = { ok: 0, revisar: 0, sin_cruce: 0, omitido: 0 }, units = 0;
+    S.products.forEach(function (p) { var st = p.omit ? 'omitido' : p.status; cnt[st]++; if (!p.omit && p.ean) units += Number(p.qty) || 0; });
+    var blocks = productBlocks();
+    $('prodSummary').innerHTML = Object.keys(cnt).map(function (k) { return '<span class="chip ' + k + '">' + ST_LABEL[k] + ': ' + cnt[k] + '</span>'; }).join('') +
+      '<span class="chip omitido">Unidades a cargar: ' + Math.round(units * 100) / 100 + '</span>' +
+      (blocks.length > 1 ? blocks.map(function (b) { return '<span class="chip ok">' + esc(b.g.eventId || b.g.label) + ': ' + unitsOf(b.rows).load + ' u.</span>'; }).join('') : '') +
+      (cnt.revisar ? ' <button id="btnConfirmAll" class="small">✓ Confirmar las ' + cnt.revisar + ' sugerencias en ámbar</button>' : '');
+    if (cnt.revisar) $('btnConfirmAll').onclick = function () {
+      if (!confirm('¿Revisaste las sugerencias en ámbar? Se cargarán y se guardarán como aprendidas.')) return;
+      S.products.forEach(function (p) { if (!p.omit && p.status === 'revisar' && p.ean) setEan(p, p.ean, 'Confirmado por el usuario'); });
+      renderProducts(); renderPreview();
+    };
+
+    Array.prototype.forEach.call(document.querySelectorAll('input.qty'), function (el) {
+      el.onchange = function () { var p = S.products[+el.getAttribute('data-i')]; p.qty = el.value.trim() === '' ? null : Number(el.value.replace(',', '.')); renderProducts(); renderPreview(); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input.prod'), function (el) {
+      el.onchange = function () {
+        var ean = el.value.split('·')[0].trim();
+        var p = S.products[+el.getAttribute('data-i')];
+        if (S.catalogByEan[ean]) setEan(p, ean, 'Elegido por el usuario');
+        else if (el.value.trim() === '') { p.ean = ''; p.status = 'sin_cruce'; }
+        renderProducts(); renderPreview();
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.sugg button'), function (b) {
+      b.onclick = function () { setEan(S.products[+b.getAttribute('data-i')], b.getAttribute('data-ean'), 'Elegido por el usuario'); renderProducts(); renderPreview(); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input.omit'), function (el) {
+      el.onchange = function () { S.products[+el.getAttribute('data-i')].omit = el.checked; renderProducts(); renderPreview(); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.btnSplit'), function (b) {
+      b.onclick = function () { S.splitOpen = +b.getAttribute('data-i'); renderProducts(); var t = $('splitText'); if (t) t.focus(); };
+    });
+    if (S.splitOpen != null && $('splitText')) {
+      $('splitCancel').onclick = function () { S.splitOpen = null; renderProducts(); };
+      $('splitShift').onclick = function () { applySplit('shift'); };
+      $('splitNew').onclick = function () { applySplit('new'); };
+    }
+  }
+
+  // ✂ Separar descripciones concatenadas por el OCR
+  //  - shift: códigos y cantidades están bien; los nombres se corren hacia abajo (rellenando las filas finales sin nombre)
+  //  - new:   cada línea extra es un producto nuevo (sin código) que se inserta debajo
+  function applySplit(mode) {
+    var i = S.splitOpen;
+    var pieces = $('splitText').value.split('\n').map(function (s) { return s.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+    S.splitOpen = null;
+    if (pieces.length < 2) { S.products[i].desc = pieces[0] || S.products[i].desc; delete S.products[i].descParts; renderProducts(); return; }
+    var extraRows = [], touched = [];
+    if (mode === 'shift') {
+      var descs = S.products.map(function (p) { return p.desc || ''; });
+      descs.splice.apply(descs, [i, 1].concat(pieces));
+      // quitar al final tantas descripciones vacías como nombres sobrantes
+      var over = descs.length - S.products.length;
+      for (var j = descs.length - 1; j > i + pieces.length - 1 && over > 0; j--) { if (!descs[j]) { descs.splice(j, 1); over--; } }
+      S.products.forEach(function (p, k) {
+        if (k >= i && p.desc !== descs[k]) { p.desc = descs[k]; delete p.descParts; if (!p.code) touched.push(k); }
+      });
+      descs.slice(S.products.length).forEach(function (d) { extraRows.push({ code: '', desc: d, qty: null }); });
+      appendRows(extraRows, i);
+    } else {
+      S.products[i].desc = pieces[0]; delete S.products[i].descParts;
+      if (!S.products[i].code) touched.push(i);
+      insertRows(pieces.slice(1).map(function (d) { return { code: '', desc: d, qty: null }; }), i);
+      for (var k = 1; k < pieces.length; k++) touched.push(i + k);
+    }
+    extraRows.forEach(function (_, k) { touched.push(S.products.length - extraRows.length + k); });
+    rematch(touched);
+  }
+
+  function blankProduct(r) { return { code: r.code, desc: r.desc, qty: r.qty, ean: '', producto: '', bu: '', method: '', status: 'sin_cruce', candidates: [], omit: false, _autoEan: '', _autoStatus: 'sin_cruce' }; }
+  function groupOf(i) { return S.groups.filter(function (g) { return g.rows.indexOf(i) >= 0; })[0] || S.groups[0]; }
+
+  /** Inserta filas debajo de la fila i y renumera los índices de los grupos. */
+  function insertRows(rows, i) {
+    if (!rows.length) return;
+    var g = groupOf(i), n = rows.length;
+    S.groups.forEach(function (gg) { gg.rows = gg.rows.map(function (x) { return x > i ? x + n : x; }); });
+    var pos = g.rows.indexOf(i);
+    var add = rows.map(function (_, k) { return i + 1 + k; });
+    g.rows.splice.apply(g.rows, [pos + 1, 0].concat(add));
+    S.products.splice.apply(S.products, [i + 1, 0].concat(rows.map(blankProduct)));
+  }
+  function appendRows(rows, i) {
+    if (!rows.length) return;
+    var g = groupOf(i);
+    rows.forEach(function (r) { g.rows.push(S.products.length); S.products.push(blankProduct(r)); });
+  }
+
+  /** Vuelve a cruzar por nombre las filas sin código que cambiaron. */
+  function rematch(idxs) {
+    idxs = idxs.filter(function (k, p) { return idxs.indexOf(k) === p && S.products[k]; });
+    if (!idxs.length) { renderProducts(); renderPreview(); return; }
+    var rows = idxs.map(function (k) { var p = S.products[k]; return { code: p.code, desc: p.desc, qty: p.qty }; });
+    call('api_matchRows', [rows, $('origin').value], 'Cruzando las filas separadas…').then(function (ms) {
+      ms.forEach(function (m, n) {
+        var k = idxs[n], old = S.products[k];
+        m.qty = old.qty; m.omit = false; m._autoEan = m.ean; m._autoStatus = m.status;
+        ['pdvText', 'pdvCode', 'date'].forEach(function (f) { if (old[f]) m[f] = old[f]; });
+        S.products[k] = m;
+      });
+      renderProducts(); renderPreview();
+    }, function () { renderProducts(); renderPreview(); });
+  }
+
+  function setEan(p, ean, method) {
+    var c = S.catalogByEan[ean];
+    p.ean = ean; p.producto = c.producto; p.bu = c.bu; p.method = method; p.status = 'ok'; p.confidence = 1; p.omit = false;
+  }
+
+  // ---------------------------------------------------------------- 4. Eventos
+  function renderGroups() {
+    $('cardEvent').classList.remove('hidden');
+    var tipos = (S.boot.tipos.length ? S.boot.tipos : ['PDV', 'FERIA', 'EMPRESARIAL', 'COMUNIDAD']);
+    $('groups').innerHTML = S.groups.map(function (g, gi) {
+      var name = 'g' + gi;
+      var cands = g.candidates.map(function (c, ci) {
+        return '<label class="opt"><input type="radio" name="' + name + '" value="evento" data-id="' + esc(c.idResumen) + '"' + (g.mode === 'evento' && g.idResumen === c.idResumen ? ' checked' : '') + '>' +
+          '<span><strong>' + esc(c.idResumen) + '</strong>' + (c.fromName ? ' <span class="chip ok">' + (g.fromRows && c.idResumen === g.fromName ? 'escrito en las filas del archivo' : 'del nombre del archivo') + '</span>' : '') +
+            (c.enPlantilla ? ' <span class="chip revisar">ya cargado: ' + c.enPlantilla.filas + ' filas</span>' : '') + ' · ' + esc(c.pdv) + ' · ' + fmtD(c.inicio) + (c.fin && c.fin !== c.inicio ? '–' + fmtD(c.fin) : '') + ' · ' + esc(c.tipo) +
+          ' · <span class="' + (/RECHAZ|CANCEL/i.test(c.estado) ? 'chip sin_cruce' : 'chip ok') + '">' + esc(c.estado || 'sin estado') + '</span>' +
+          '<br><span class="small muted">' + esc(c.cliente) + ' · ' + esc(c.idEvento) + ' · ' + esc(c.solicitante) + ' · coincidencia ' + Math.round(c.score * 100) + '%</span></span></label>';
+      }).join('') || '<p class="small muted">No hay eventos programados que coincidan con este cliente y estas fechas.</p>';
+      return '<div class="group" data-g="' + gi + '"><div><strong>' + (g.eventId ? 'Evento del archivo:' : 'PDV del archivo:') + '</strong> ' + esc(g.label) +
+        (g.eventId ? ' <span class="small muted">· ' + unitsOf(g.rows).load + ' unidades</span>' : '') +
+        (g.pdv && g.pdv.isdinDesc ? ' <span class="small muted">→ PDV Master: ' + esc(g.pdv.isdinDesc) + ' (' + esc(g.pdv.method) + ')</span>' : '') +
+        ' <span class="small muted">· ' + g.rows.length + ' filas</span></div>' +
+        '<p class="small muted" style="margin:6px 0">Eventos programados en "Detalle eventos":</p>' + cands +
+        '<label class="opt"><input type="radio" name="' + name + '" value="id_manual"' + (g.mode === 'id_manual' ? ' checked' : '') + '><span>Escribir el ID RESUMEN a mano</span></label>' +
+        '<div class="sub ' + (g.mode === 'id_manual' ? '' : 'hidden') + '" data-sub="id_manual"><div class="row"><div><input class="idman" placeholder="ACT-0000" value="' + esc(g.mode === 'id_manual' ? g.idResumen : '') + '"></div><div><button class="btnLookup">Buscar</button></div></div><div class="lookupRes small"></div></div>' +
+        '<label class="opt"><input type="radio" name="' + name + '" value="no_programado"' + (g.mode === 'no_programado' ? ' checked' : '') + '><span>Evento no programado (sin ID) — se generará un ID artificial ' + esc('MAN-xxxx') + '</span></label>' +
+        '<div class="sub ' + (g.mode === 'no_programado' || (g.mode === 'id_manual' && g.notFound) ? '' : 'hidden') + '" data-sub="manual"><div class="row">' +
+        '<div style="flex:1;min-width:220px"><label>Nombre del evento *</label><input class="mNombre" style="width:100%" value="' + esc(g.manual.nombre) + '"></div>' +
+        '<div><label>Tipo de evento</label><select class="mTipo">' + tipos.map(function (t) { return '<option' + (g.manual.tipo === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+        '<div><label>Desde</label><input type="date" class="mFrom" value="' + esc(g.manual.from) + '"></div><div><label>Hasta</label><input type="date" class="mTo" value="' + esc(g.manual.to) + '"></div></div></div></div>';
+    }).join('');
+
+    Array.prototype.forEach.call(document.querySelectorAll('.group'), function (box) {
+      var g = S.groups[+box.getAttribute('data-g')];
+      Array.prototype.forEach.call(box.querySelectorAll('input[type=radio]'), function (r) {
+        r.onchange = function () {
+          g.mode = r.value; g.notFound = false; g.lookup = null;
+          g.idResumen = r.value === 'evento' ? r.getAttribute('data-id') : '';
+          if (!g.manual.tipo) g.manual.tipo = box.querySelector('.mTipo').value;
+          renderGroups(); renderPreview();
+        };
+      });
+      box.querySelector('.btnLookup').onclick = function () {
+        var id = box.querySelector('.idman').value.trim().toUpperCase(); if (!id) return;
+        call('api_lookupEvent', id, 'Buscando ' + id + '…').then(function (r) {
+          g.idResumen = id; g.lookup = r.found ? r.ev : null; g.notFound = !r.found;
+          renderGroups(); renderPreview();
+          var out = document.querySelector('.group[data-g="' + S.groups.indexOf(g) + '"] .lookupRes');
+          out.innerHTML = r.found ? '<span style="color:var(--ok)">Encontrado: ' + esc(r.ev.cliente) + ' · ' + esc(r.ev.pdv || r.ev.pdvManual) + ' · ' + fmtD(r.ev.inicio) + ' · ' + esc(r.ev.estado) + '</span>'
+            : '<span style="color:var(--warn)">' + esc(id) + ' no está en "Detalle eventos". Se cargará con este ID y el nombre del evento que escribas abajo.</span>';
+        });
+      };
+      ['mNombre', 'mTipo', 'mFrom', 'mTo'].forEach(function (cls) {
+        var el = box.querySelector('.' + cls);
+        el.oninput = el.onchange = function () {
+          var k = { mNombre: 'nombre', mTipo: 'tipo', mFrom: 'from', mTo: 'to' }[cls];
+          g.manual[k] = el.value; renderPreview();
+        };
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- 5. Vista previa y carga
+  function groupHead(g) {
+    if (g.mode === 'evento') {
+      var c = g.candidates.filter(function (x) { return x.idResumen === g.idResumen; })[0];
+      if (!c) return null;
+      return [mesDe(c.inicio), dias(c.inicio, c.fin), c.idResumen, c.solicitante, c.cliente, c.pdv, c.tipo];
+    }
+    if (g.mode === 'id_manual' && g.lookup) {
+      var e = g.lookup;
+      return [(e.mes || mesDe(e.inicio)).toUpperCase(), e.dias || dias(e.inicio, e.fin), e.idResumen, e.solicitante, e.cliente, e.pdv || e.pdvManual, e.tipo];
+    }
+    if ((g.mode === 'id_manual' && g.notFound) || g.mode === 'no_programado') {
+      return [mesDe(g.manual.from), dias(g.manual.from, g.manual.to), g.mode === 'no_programado' ? '(MAN-xxxx)' : g.idResumen, S.boot.user.email,
+        $('origin').value, g.manual.nombre || '(nombre del evento)', g.manual.tipo || ''];
+    }
+    return null;
+  }
+
+  function renderPreview() {
+    $('cardPreview').classList.remove('hidden');
+    var html = '<thead><tr>' + ['MES', 'DIAS', 'ID RESUMEN', 'SOLICITANTE', 'CLIENTE', 'ISDIN PDV', 'TIPO DE EVENTO', 'EAN', 'PRODUCTO', 'UNITS', 'BU', 'DERMO'].map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
+    var n = 0;
+    S.groups.forEach(function (g) {
+      var head = groupHead(g) || ['—', '—', '(elige evento)', '', '', '', ''];
+      var gn = 0;
+      g.rows.forEach(function (i) {
+        var p = S.products[i];
+        if (p.omit || !p.ean) return;
+        n++; gn++;
+        html += '<tr>' + head.concat([p.ean, p.producto, p.qty, p.bu, '(del evento)']).map(function (v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>';
+      });
+      // Total por evento (solo para validar; no se escribe en la PLANTILLA)
+      if (gn) html += '<tr class="totalRow"><td colspan="9">Total ' + esc(head[2]) + ' <span class="small">(' + gn + ' filas · no se carga)</span></td><td>' + unitsOf(g.rows).load + '</td><td colspan="2"></td></tr>';
+    });
+    $('prevTable').innerHTML = html + '</tbody>';
+    var problems = validate();
+    $('btnCommit').disabled = problems.length > 0 || !n;
+    $('btnCommit').textContent = 'Cargar ' + n + ' filas a la PLANTILLA';
+    msg($('commitMsg'), problems.length ? 'info' : '', problems.join(' · '));
+  }
+
+  function validate() {
+    var out = [];
+    if (!$('origin').value) out.push('Elige el cliente');
+    var sin = S.products.filter(function (p) { return !p.omit && !p.ean; }).length;
+    if (sin) out.push(sin + ' producto(s) sin EAN: elige el producto u omítelo');
+    var pend = S.products.filter(function (p) { return !p.omit && p.ean && p.status === 'revisar'; }).length;
+    if (pend) out.push(pend + ' sugerencia(s) en ámbar por confirmar');
+    var noqty = S.products.filter(function (p) { return !p.omit && p.ean && (p.qty == null || isNaN(p.qty)); }).length;
+    if (noqty) out.push(noqty + ' producto(s) sin cantidad');
+    S.groups.forEach(function (g) {
+      var lbl = S.groups.length > 1 ? ' (' + g.label + ')' : '';
+      if (!g.mode) out.push('Elige el evento' + lbl);
+      else if (g.mode === 'id_manual' && !g.lookup && !g.notFound) out.push('Busca el ID escrito' + lbl);
+      else if ((g.mode === 'no_programado' || g.notFound) && !g.manual.nombre.trim()) out.push('Escribe el nombre del evento' + lbl);
+    });
+    return out;
+  }
+
+  $('btnCommit').onclick = function () { commit(false); };
+  function commit(force) {
+    var req = {
+      fileName: S.file ? S.file.name : '', origin: $('origin').value, force: force,
+      driveFileId: S.file && S.file.driveId || '', driveVersion: S.file && S.file.driveVersion || '',
+      groups: S.groups.map(function (g) {
+        return {
+          mode: g.mode === 'id_manual' && g.lookup ? 'evento' : g.mode, idResumen: g.idResumen, pdvText: g.pdvText,
+          manual: { nombre: g.manual.nombre.trim(), tipo: g.manual.tipo, from: g.manual.from, to: g.manual.to, cliente: $('origin').value },
+          rows: g.rows.map(function (i) {
+            var p = S.products[i];
+            var learn = !p.omit && !!p.ean && (p.ean !== p._autoEan || p._autoStatus !== 'ok');
+            return { code: p.code, desc: p.desc, qty: p.qty, ean: p.ean, omit: p.omit || !p.ean, learn: learn };
+          })
+        };
+      })
+    };
+    call('api_commit', req, 'Escribiendo en la PLANTILLA…').then(function (r) {
+      if (r.duplicate) {
+        if (confirm(r.warnings.join('\n') + '\n\n¿Cargar de todas formas?')) commit(true);
+        return;
+      }
+      var ids = r.eventos.map(function (e) { return e.id + (e.manual ? ' (nuevo, registrado en LV_Eventos_Manuales)' : '') + ': ' + e.filas + ' filas'; }).join(' · ');
+      msg($('commitMsg'), 'good', '✔ Cargadas ' + r.filas + ' filas en PLANTILLA VENTAS EVENTOS (' + r.rango + '). ' + ids + '. Aprendizajes guardados: ' + r.aprendidos + '. Carga ' + r.cargaId + '.');
+      $('btnCommit').disabled = true;
+      if (S.file && S.file.driveId) loadInbox();
+    });
+  }
+
+  $('btnReset').onclick = function () { resetBelow(); $('fileInfo').textContent = ''; $('fileInput').value = ''; window.scrollTo(0, 0); };
+  function resetBelow() {
+    ['cardClient', 'cardProducts', 'cardEvent', 'cardPreview', 'tableMap', 'rawBox'].forEach(function (id) { $(id).classList.add('hidden'); });
+    msg($('globalMsg'), '', ''); msg($('commitMsg'), '', '');
+    S.ext = null; S.match = null; S.products = []; S.groups = []; S.tableRows = null;
+    S.idHint = ''; $('srcId').value = ''; $('idInfo').innerHTML = '';
+  }
+
+  // ---------------------------------------------------------------- Ocultar / mostrar secciones
+  // Carpeta, Eventos del mes y Archivo recuerdan su estado en este navegador.
+  // Los pasos 2–5 se vuelven a abrir solos cada vez que aparecen (para no perder una revisión).
+  var COLL_KEY = 'lv_secciones_ocultas', COLL_SAVE = { cardInbox: 1, cardMonth: 1, cardFile: 1 };
+  var collSaved = (function () { try { return JSON.parse(localStorage.getItem(COLL_KEY) || '{}') || {}; } catch (e) { return {}; } })();
+  function setCollapsed(card, on) {
+    card.classList.toggle('collapsed', on);
+    var b = card.querySelector('h2 > .btnColl');
+    b.textContent = on ? '▸ Mostrar' : '▾ Ocultar';
+    b.title = on ? 'Mostrar esta sección' : 'Ocultar esta sección';
+    if (COLL_SAVE[card.id]) {
+      if (on) collSaved[card.id] = 1; else delete collSaved[card.id];
+      try { localStorage.setItem(COLL_KEY, JSON.stringify(collSaved)); } catch (e) { /* sin almacenamiento */ }
+    }
+  }
+  document.querySelectorAll('main > section.card').forEach(function (card) {
+    var h = card.querySelector('h2'); if (!h) return;
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'btnColl';
+    h.appendChild(b);
+    h.onclick = function (e) { if (e.target.closest('a,input,select') ) return; setCollapsed(card, !card.classList.contains('collapsed')); };
+    setCollapsed(card, !!(COLL_SAVE[card.id] && collSaved[card.id]));
+    if (!COLL_SAVE[card.id]) {
+      new MutationObserver(function () {
+        if (!card.classList.contains('hidden') && card.classList.contains('collapsed') && card._wasHidden) setCollapsed(card, false);
+        card._wasHidden = card.classList.contains('hidden');
+      }).observe(card, { attributes: true, attributeFilter: ['class'] });
+      card._wasHidden = card.classList.contains('hidden');
+    }
+  });
+})();
+</script>
+</body>
+</html>

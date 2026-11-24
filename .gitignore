@@ -1,0 +1,9 @@
+node_modules/
+.clasprc.json
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+tests/xml/
+.vscode/
+Thumbs.db

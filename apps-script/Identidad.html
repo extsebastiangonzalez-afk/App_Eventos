@@ -1,0 +1,210 @@
+<!-- Copiado de https://github.com/williamcorrea-hash/manual-identidad-visual-ISDIN.git (apps-script/identidad.html, commit 2dbbb18, 2026-11-17) con tools/sync_identidad.ps1. No editar aqui: cambiar en el repositorio del manual. -->
+<style>
+  /* Identidad visual ISDIN para dashboards, apps y reportes (única).
+     Colores: manual de identidad (valores HEX leídos de la guía). Estados: informe Looker.
+     Guía completa: docs/identidad-visual.md */
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&display=swap');
+
+  :root {
+    /* Superficies */
+    --paper: #FFFFFF;          /* fondo de página y tarjetas */
+    --surface: #FCF5ED;        /* bloques destacados (KPI) */
+    --bg-2: #FFF5F0;           /* avisos suaves */
+    --bg-3: #F6F6F6;           /* paneles neutros */
+    --chrome: #F5F3EE;         /* cabecera y encabezados de tabla */
+    --line: #E1E1E1;           /* bordes y separadores */
+
+    /* Texto */
+    --ink: #414141;            /* texto principal, botón principal */
+    --ink-strong: #2E2E2B;     /* títulos */
+    --muted: #6D6D6D;          /* texto secundario, ejes. 5.1:1 sobre blanco */
+
+    /* Acentos de marca */
+    --peach: #FFC7AB;
+    --peach-60: #FFB48F;       /* serie principal de gráficos */
+    --peach-70: #D09375;       /* foco, borde de avisos, segunda serie */
+    --peach-90: #725140;       /* enlaces. 7.1:1 sobre blanco */
+    --arena-70: #B8A186;       /* tercera serie */
+    --sand: #E6C8A6;
+
+    /* Estados (variaciones y avisos). Looker + versión legible en texto */
+    --ok-text: #086124;        /* 7.6:1 sobre blanco */
+    --ok-fill: #C8E6C9;
+    --bad-text: #B71C1C;       /* 6.6:1 sobre blanco */
+
+    /* Tipografía */
+    --font: 'Montserrat', 'Gotham', Arial, sans-serif;   /* Gotham es la fuente de marca; Montserrat la sustituta web */
+    --font-dense: Arial, Helvetica, sans-serif;           /* tablas y datos densos */
+
+    /* Forma */
+    --radius-sm: 6px;
+    --radius-card: 12px;
+    --radius-pill: 999px;
+    --gutter: 16px;
+
+    /* Escalas de tono del manual (paso 0 = más claro, 100 = más oscuro) */
+    --neutra-0: #FFFFFF; --neutra-10: #F5F5F5; --neutra-20: #E1E1E1; --neutra-30: #CECECE; --neutra-40: #A9A9A9;
+    --neutra-50: #8A8A8A; --neutra-60: #6D6D6D; --neutra-70: #525151; --neutra-80: #414141; --neutra-90: #2E2E2E; --neutra-100: #131313;
+    --durazno-10: #FFF2EC; --durazno-20: #FFEBE1; --durazno-30: #FFDDCD; --durazno-40: #FFD0B8; --durazno-50: #FFC2A4;
+    --durazno-60: #FFB48F; --durazno-70: #D09375; --durazno-80: #A1725A; --durazno-90: #725140; --durazno-100: #433026;
+    --arena-10: #FCF5ED; --arena-20: #F7EEE3; --arena-30: #F5E9DC; --arena-40: #F0DFCA; --arena-50: #EBD4B9;
+    --arena-60: #E6C9A7; --arena-70: #B8A186; --arena-80: #8A7964; --arena-90: #5C5043; --arena-100: #2E2821;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.4;
+    padding: var(--gutter);
+  }
+
+  @media (min-width: 768px) { body { padding: 24px; } }
+
+  h1, h2 { color: var(--ink-strong); margin: 0 0 8px; font-weight: 700; letter-spacing: -0.03em; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 16px; }
+
+  .etiqueta {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+    color: var(--muted);
+  }
+
+  .cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--chrome);
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+    margin-bottom: var(--gutter);
+  }
+
+  .logo svg { height: 28px; width: auto; display: block; margin-bottom: 8px; }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: var(--gutter);
+    margin-bottom: var(--gutter);
+  }
+
+  .tarjeta {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    padding: 16px 20px;
+  }
+
+  .destacada { background: var(--surface); border-color: var(--surface); }
+
+  .kpi-cifra { font-size: 30px; font-weight: 700; color: var(--ink-strong); margin-top: 4px; }
+  .kpi-variacion { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .panel { margin-bottom: var(--gutter); }
+
+  .pastilla, .boton {
+    display: inline-block;
+    border-radius: var(--radius-pill);
+    padding: 8px 16px;
+    font: inherit;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .pastilla[aria-pressed="true"] { background: var(--surface); border-color: var(--peach-70); }
+  .boton-principal { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .boton-secundario { background: var(--peach); color: var(--ink); border-color: var(--peach); }
+
+  a { color: var(--peach-90); }
+  a:hover { text-decoration: underline; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--chrome);
+    color: var(--ink-strong);
+    text-align: left;
+    font-weight: 500;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--ink); }
+  td, th { font-family: var(--font-dense); font-size: 12px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .aviso {
+    background: var(--bg-2);
+    border-left: 4px solid var(--peach-70);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  .grafico { width: 100%; min-height: 280px; }
+
+  /* Estados de variación: el texto indica el signo; el color lo refuerza. */
+  .positivo { color: var(--ok-text); }
+  .negativo { color: var(--bad-text); }
+
+  /* Explicaciones: cualquier elemento con data-tip muestra su texto al pasar el cursor o al enfocarlo. */
+  .ayuda { position: relative; }
+  .ayuda:focus-visible { outline: 2px solid var(--peach-70); outline-offset: 2px; }
+  .ayuda::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 10;
+    min-width: 220px;
+    max-width: 280px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-dense);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s;
+  }
+  .ayuda:hover::after,
+  .ayuda:focus-visible::after { opacity: 1; }
+
+  /* Leyenda: muestra de color + nombre; subrayado punteado = tiene descripción. */
+  .leyenda { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; margin: 0 0 12px; }
+  .leyenda-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: help;
+    border-bottom: 1px dotted var(--muted);
+    padding-bottom: 2px;
+  }
+  .leyenda-item::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--c);
+  }
+</style>
